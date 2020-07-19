@@ -1,0 +1,10 @@
+.venv
+.mypy_cache
+__pycache__
+*.egg-info
+.idea
+
+/scripts
+.env
+*.db
+.pytest_cache

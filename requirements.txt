@@ -1,0 +1,10 @@
+# app
+sqlalchemy
+psycopg2-binary
+python-dotenv
+
+# dev
+pytest
+pytest-icdiff
+mypy
+coverage

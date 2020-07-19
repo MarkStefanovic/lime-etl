@@ -1,0 +1,24 @@
+version: "3"
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./src:/src
+      - ./tests:/tests
+
+
+  postgres:
+    image: postgres:9.6
+    environment:
+      - POSTGRES_USER=tester
+      - POSTGRES_PASSWORD=abc123
+      - POSTGRES_DB=testdb
+    ports:
+      - "5432:5432"
