@@ -48,18 +48,21 @@ def run(uow: unit_of_work.UnitOfWork, jobs: List[job_spec.JobSpec]) -> batch.Bat
             batch_logger.log_start(uow=uow)
             result = _run_batch(uow=uow, batch_id=batch_id, jobs=jobs,)
             batch_logger.log_completed_successfully(uow=uow)
-            return result
         except Exception as e:
             batch_logger.log_error(
                 uow=uow, message=value_objects.LogMessage(value=str(e))
             )
-            return batch.Batch(
+            result = batch.Batch(
                 id=batch_id,
                 job_results=frozenset(),
                 execution_success_or_failure=value_objects.Result.failure(str(e)),
                 execution_millis=value_objects.ExecutionMillis(0),
                 ts=uow.ts_adapter.now(),
             )
+
+        uow.batches.add(new_batch=result)
+
+    return result
 
 
 def _compose_email(
