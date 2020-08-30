@@ -11,6 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, relationship
 
+from domain import value_objects
 from src.domain.batch import BatchDTO
 from src.domain.job_result import JobResultDTO
 from src.domain.job_log_entry import JobLogEntryDTO
@@ -82,6 +83,11 @@ job_test_results = Table(
     Column("test_failure_message", String(2000), nullable=True),
     Column("ts", DateTime, nullable=False),
 )
+
+
+def set_schema(schema: value_objects.SchemaName) -> None:
+    for table_name, table in metadata.tables.items():
+        table.schema = schema.value
 
 
 def start_mappers() -> None:

@@ -34,6 +34,11 @@ class Settings(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def etl_schema(self) -> value_objects.SchemaName:
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
     def smtp_server(self) -> value_objects.SMTPServer:
         raise NotImplementedError
 
@@ -66,6 +71,10 @@ class DotEnvSettings(Settings):
     @property
     def email_password(self) -> value_objects.Password:
         return value_objects.Password(os.environ["EMAIL_PASSWORD"])
+
+    @property
+    def etl_schema(self) -> value_objects.SchemaName:
+        return value_objects.SchemaName(os.environ["ETL_SCHEMA"] or None)
 
     @property
     def smtp_server(self) -> value_objects.SMTPServer:

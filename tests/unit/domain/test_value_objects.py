@@ -23,6 +23,7 @@ from src.domain import value_objects
         (value_objects.MaxRetries, 3),
         (value_objects.Password, "password"),
         (value_objects.Result, value_objects.Failure("Failed.")),
+        (value_objects.SchemaName, "etl"),
         (value_objects.SecondsBetweenRefreshes, 300),
         (value_objects.SingleChar, "T"),
         (value_objects.SMTPPort, 465),
@@ -53,6 +54,7 @@ def test_value_object_accepts_values_of_correct_type(cls: type, value: Any) -> N
         (value_objects.MaxRetries, "3"),
         (value_objects.Password, 123),
         (value_objects.Result, "success"),
+        (value_objects.SchemaName, 123),
         (value_objects.SecondsBetweenRefreshes, "999"),
         (value_objects.SingleChar, 1),
         (value_objects.SMTPPort, "123"),
@@ -114,6 +116,7 @@ def test_value_object_rejects_none_value(cls: type) -> None:
         (value_objects.JobName, "a", "JobName must be between 3 and 100 characters"),
         (value_objects.MaxRetries, -1, "MaxRetries value must be positive"),
         (value_objects.Password, "", "Password value is required"),
+        (value_objects.SchemaName, "", "If a SchemaName value is provided, then it must be at least 1 character long"),
         (value_objects.SecondsBetweenRefreshes, 1, "must be at least 300 seconds"),
         (value_objects.SingleChar, "", "SingleChar value is required"),
         (value_objects.SingleChar, "abc", "SingleChar must be 1 char"),
@@ -145,47 +148,47 @@ def test_unique_id_generates_valid_uuid() -> None:
     assert len(uuid.value) == 32
 
 
-def test_value_object__eq__():
+def test_value_object__eq__() -> None:
     v = value_objects.ValueObject(1)
     v2 = value_objects.ValueObject(1)
     assert v.__eq__(v2)
 
 
-def test_value_object__ge__():
+def test_value_object__ge__() -> None:
     v = value_objects.ValueObject(2)
     v2 = value_objects.ValueObject(1)
     assert v >= v2
 
 
-def test_value_object__gt__():
+def test_value_object__gt__() -> None:
     v = value_objects.ValueObject(2)
     v2 = value_objects.ValueObject(1)
     assert v > v2
 
 
-def test_value_object__hash__():
+def test_value_object__hash__() -> None:
     v = value_objects.ValueObject(1)
     assert hash(v) == hash(1)
 
 
-def test_value_object__le__():
+def test_value_object__le__() -> None:
     v = value_objects.ValueObject(1)
     v2 = value_objects.ValueObject(2)
     assert v <= v2
 
 
-def test_value_object__lt__():
+def test_value_object__lt__() -> None:
     v = value_objects.ValueObject(1)
     v2 = value_objects.ValueObject(2)
     assert v < v2
 
 
-def test_value_object__ne__():
+def test_value_object__ne__() -> None:
     v = value_objects.ValueObject(1)
     v2 = value_objects.ValueObject(2)
     assert v != v2
 
 
-def test_value_object__repr__():
+def test_value_object__repr__() -> None:
     v = value_objects.ValueObject(1)
     assert repr(v) == "ValueObject(1)"

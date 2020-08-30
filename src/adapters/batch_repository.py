@@ -66,7 +66,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
     def get_latest(self) -> Optional[batch.Batch]:
         result: Optional[batch.BatchDTO] = (
             self._session.query(batch.BatchDTO)
-            .order_by(desc(batch.BatchDTO.ts))  # type: ignore
+            .order_by(desc(batch.BatchDTO.ts))
             .first()
         )
         if result is None:
@@ -80,7 +80,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
         jr: Optional[job_result.JobResultDTO] = (
             self._session.query(job_result.JobResultDTO)
             .filter(job_result.JobResultDTO.job_name.like(job_name.value))  # type: ignore
-            .order_by(desc(job_result.JobResultDTO.ts))  # type: ignore
+            .order_by(desc(job_result.JobResultDTO.ts))
             .first()
         )
         if jr is None:

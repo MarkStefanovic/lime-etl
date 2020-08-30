@@ -203,6 +203,22 @@ class UniqueId(ValueObject):
         return UniqueId(value=uuid4().hex)
 
 
+class SchemaName(ValueObject):
+    def __init__(self, value: Optional[str]):
+        if value is None:
+            ...
+        elif isinstance(value, str):
+            if not value:
+                raise ValueError(
+                    f"If a {self.__class__.__name__} value is provided, then it must be at least 1 "
+                    f"character long, but got {value!r}."
+                )
+        else:
+            raise TypeError(f"{self.__class__.__name__} expects a str, but got {value!r}")
+
+        super().__init__(value=value)
+
+
 class SingleChar(ValueObject):
     def __init__(self, value: str):
         if not value:
@@ -242,26 +258,6 @@ class JobName(ValueObject):
         super().__init__(value=value)
 
 
-class TestName(ValueObject):
-    def __init__(self, value: str):
-        if value is None:
-            raise ValueError(
-                f"{self.__class__.__name__} value is required, but got None."
-            )
-        elif isinstance(value, str):
-            if len(value) < 3 or len(value) > 100:
-                raise ValueError(
-                    f"{self.__class__.__name__} must be between 3 and 100 characters long, "
-                    f"but got {value!r}."
-                )
-        else:
-            raise TypeError(
-                f"{self.__class__.__name__} expects a str, but got {value!r}"
-            )
-
-        super().__init__(value=value)
-
-
 class SecondsBetweenRefreshes(ValueObject):
     def __init__(self, value: int):
         if value is None:
@@ -280,6 +276,25 @@ class SecondsBetweenRefreshes(ValueObject):
 
         super().__init__(value=value)
 
+
+class TestName(ValueObject):
+    def __init__(self, value: str):
+        if value is None:
+            raise ValueError(
+                f"{self.__class__.__name__} value is required, but got None."
+            )
+        elif isinstance(value, str):
+            if len(value) < 3 or len(value) > 100:
+                raise ValueError(
+                    f"{self.__class__.__name__} must be between 3 and 100 characters long, "
+                    f"but got {value!r}."
+                )
+        else:
+            raise TypeError(
+                f"{self.__class__.__name__} expects a str, but got {value!r}"
+            )
+
+        super().__init__(value=value)
 
 class Days(_PositiveInt):
     ...

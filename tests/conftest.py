@@ -1,5 +1,5 @@
 import datetime
-from typing import Callable, Generator, List, Optional, cast
+from typing import Generator, List, Optional
 
 import pytest
 from sqlalchemy import create_engine
@@ -17,7 +17,6 @@ from src.domain import (
     batch,
     batch_log_entry,
     job_log_entry,
-    job_result,
     job_test_result,
     value_objects,
 )
@@ -171,8 +170,8 @@ def dummy_uow(
     )
 
 
-@pytest.fixture(scope='session')
-def postgres_db():
+@pytest.fixture(scope="session")
+def postgres_db() -> Engine:
     user = "tester"
     db_name = "testdb"
     pwd = "abc123"
@@ -187,7 +186,7 @@ def postgres_db():
 
 
 @pytest.fixture
-def postgres_session(postgres_db) -> sessionmaker:
+def postgres_session(postgres_db: Engine) -> sessionmaker:
     start_mappers()
     yield sessionmaker(bind=postgres_db)()
     clear_mappers()
