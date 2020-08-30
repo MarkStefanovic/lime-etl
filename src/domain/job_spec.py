@@ -39,17 +39,11 @@ class JobSpec(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def run(
-        self,
-        uow: unit_of_work.UnitOfWork,
-        logger: job_logging_service.JobLoggingService,
-    ) -> None:
+    def run(self, logger: job_logging_service.JobLoggingService,) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     def test(
-        self,
-        uow: unit_of_work.UnitOfWork,
-        logger: job_logging_service.JobLoggingService,
+        self, logger: job_logging_service.JobLoggingService,
     ) -> Iterable[job_test_result.JobTestResult]:
         raise NotImplementedError

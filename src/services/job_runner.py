@@ -102,10 +102,8 @@ def _run_job_with_tests(
     logger: job_logging_service.JobLoggingService,
 ) -> job_result.JobResult:
     start_time = datetime.datetime.now()
-    job.run(
-        uow=uow, logger=logger,
-    )
-    test_results = job.test(uow=uow, logger=logger,)
+    job.run(logger=logger,)
+    test_results = job.test(logger=logger,)
     test_results = frozenset(test_results)
     end_time = datetime.datetime.now()
     execution_millis = int((end_time - start_time).total_seconds() * 1000)

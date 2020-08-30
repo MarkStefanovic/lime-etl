@@ -9,8 +9,10 @@ from src.domain.job_spec import JobSpec
 class DeleteOldLogs(JobSpec):
     def __init__(
         self,
+        uow: unit_of_work.UnitOfWork,
         days_to_keep: value_objects.DaysToKeep,
     ):
+        self._uow = uow
         self._days_to_keep = days_to_keep
 
     @property
@@ -35,10 +37,9 @@ class DeleteOldLogs(JobSpec):
 
     def run(
         self,
-        uow: unit_of_work.UnitOfWork,
         logger: job_logging_service.JobLoggingService,
     ) -> None:
-        with uow:
+        with self._uow as uow:
             uow.batch_log.delete_old_entries(
                 days_to_keep=self._days_to_keep
             )
@@ -63,7 +64,6 @@ class DeleteOldLogs(JobSpec):
 
     def test(
         self,
-        uow: unit_of_work.UnitOfWork,
         logger: job_logging_service.JobLoggingService,
     ) -> Iterable[job_test_result.JobTestResult]:
         # TODO implement

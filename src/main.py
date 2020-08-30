@@ -28,6 +28,7 @@ def main() -> None:
 
     admin: List[job_spec.JobSpec] = [
         delete_old_logs.DeleteOldLogs(
+            uow=uow,
             days_to_keep=project_settings.days_of_logs_to_keep
         ),
     ]
