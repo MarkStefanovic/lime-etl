@@ -4,8 +4,8 @@ import abc
 from typing import Iterable, List
 
 
-from src.domain import job_test_result, value_objects
-from src.services import job_logging_service, unit_of_work
+from domain import job_test_result, value_objects
+from services import job_logging_service, unit_of_work
 
 
 class JobSpec(abc.ABC):
@@ -20,8 +20,9 @@ class JobSpec(abc.ABC):
         raise NotImplementedError
 
     @property
+    @abc.abstractmethod
     def job_name(self) -> value_objects.JobName:
-        return value_objects.JobName(value=self.__class__.__name__)
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
@@ -39,11 +40,19 @@ class JobSpec(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def run(self, logger: job_logging_service.JobLoggingService,) -> None:
+    def test(
+        self, logger: job_logging_service.JobLoggingService
+    ) -> Iterable[job_test_result.JobTestResult]:
         raise NotImplementedError
 
+
+class AdminJobSpec(JobSpec):
     @abc.abstractmethod
-    def test(
-        self, logger: job_logging_service.JobLoggingService,
-    ) -> Iterable[job_test_result.JobTestResult]:
+    def run(self, uow: unit_of_work.UnitOfWork, logger: job_logging_service.JobLoggingService) -> None:
+        raise NotImplementedError
+
+
+class ETLJobSpec(JobSpec):
+    @abc.abstractmethod
+    def run(self, logger: job_logging_service.JobLoggingService) -> None:
         raise NotImplementedError

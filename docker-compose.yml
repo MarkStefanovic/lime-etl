@@ -10,7 +10,7 @@ services:
     environment:
       - PYTHONDONTWRITEBYTECODE=1
     volumes:
-      - ./src:/src
+      - ./lime_etl:/lime_etl
       - ./tests:/tests
 
 

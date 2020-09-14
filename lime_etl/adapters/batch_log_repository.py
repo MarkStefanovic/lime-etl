@@ -3,8 +3,8 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from src.adapters import timestamp_adapter
-from src.domain import batch_log_entry, value_objects
+from adapters import timestamp_adapter
+from domain import batch_log_entry, value_objects
 
 
 class BatchLogRepository(abc.ABC):

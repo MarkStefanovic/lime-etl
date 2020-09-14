@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import datetime
 
-from src.domain import value_objects
+from domain import value_objects
 
 
 class TimestampAdapter(abc.ABC):

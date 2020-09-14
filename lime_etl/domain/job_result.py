@@ -4,8 +4,7 @@ import datetime
 from dataclasses import dataclass
 from typing import FrozenSet, List, Optional
 
-from src.domain import value_objects
-from src.domain.job_test_result import JobTestResult, JobTestResultDTO
+from domain import job_test_result, value_objects
 
 
 @dataclass(unsafe_hash=True)
@@ -13,7 +12,7 @@ class JobResultDTO:
     id: str
     batch_id: str
     job_name: str
-    test_results: List[JobTestResultDTO]
+    test_results: List[job_test_result.JobTestResultDTO]
     execution_millis: int
     execution_error_occurred: bool
     execution_error_message: Optional[str]
@@ -22,7 +21,9 @@ class JobResultDTO:
     def to_domain(self) -> JobResult:
         test_results = frozenset(dto.to_domain() for dto in self.test_results)
         if self.execution_error_occurred:
-            execution_success_or_failure = value_objects.Result.failure(self.execution_error_message or "No error message was provided.")
+            execution_success_or_failure = value_objects.Result.failure(
+                self.execution_error_message or "No error message was provided."
+            )
         else:
             execution_success_or_failure = value_objects.Result.success()
 
@@ -42,7 +43,7 @@ class JobResult:
     id: value_objects.UniqueId
     batch_id: value_objects.UniqueId
     job_name: value_objects.JobName
-    test_results: FrozenSet[JobTestResult]
+    test_results: FrozenSet[job_test_result.JobTestResult]
     execution_millis: value_objects.ExecutionMillis
     execution_success_or_failure: value_objects.Result
     ts: value_objects.Timestamp

@@ -5,8 +5,8 @@ from typing import List, Optional
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from src.adapters import timestamp_adapter
-from src.domain import batch, job_result, job_test_result, value_objects
+from adapters import timestamp_adapter
+from domain import batch, job_result, job_test_result, value_objects
 
 
 class BatchRepository(abc.ABC):

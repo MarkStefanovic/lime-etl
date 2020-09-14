@@ -3,15 +3,11 @@ import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from src.adapters import batch_log_repository, timestamp_adapter
-from src.domain import value_objects
-from src.domain.batch_log_entry import BatchLogEntry, BatchLogEntryDTO
-from src.domain.value_objects import (
-    LogLevel,
-    LogLevelOption,
-    LogMessage,
-    Timestamp,
-    UniqueId,
+from adapters import timestamp_adapter
+from adapters import batch_log_repository
+from domain.batch_log_entry import BatchLogEntry, BatchLogEntryDTO
+from domain.value_objects import (
+    DaysToKeep, LogLevel, LogLevelOption, LogMessage, Timestamp, UniqueId,
 )
 from tests import conftest
 
@@ -76,7 +72,7 @@ def test_delete_old_entries_works_on_sqlite(
     repo = batch_log_repository.SqlAlchemyBatchLogRepository(
         session=session, ts_adapter=ts_adapter
     )
-    result = repo.delete_old_entries(days_to_keep=value_objects.DaysToKeep(10))
+    result = repo.delete_old_entries(days_to_keep=DaysToKeep(10))
     assert result == 2
 
 
@@ -95,5 +91,5 @@ def test_delete_old_entries_works_on_postgres(
     repo = batch_log_repository.SqlAlchemyBatchLogRepository(
         session=postgres_session, ts_adapter=ts_adapter
     )
-    result = repo.delete_old_entries(days_to_keep=value_objects.DaysToKeep(10))
+    result = repo.delete_old_entries(days_to_keep=DaysToKeep(10))
     assert result == 2

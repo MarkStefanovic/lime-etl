@@ -11,14 +11,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, relationship
 
-from domain import value_objects
-from src.domain.batch import BatchDTO
-from src.domain.job_result import JobResultDTO
-from src.domain.job_log_entry import JobLogEntryDTO
-from src.domain.job_test_result import JobTestResultDTO
-
-from src.domain.batch_log_entry import BatchLogEntryDTO
-from src.domain.value_objects import LogLevelOption
+from domain import (
+    batch,
+    job_result,
+    job_log_entry,
+    job_test_result,
+    batch_log_entry,
+    value_objects,
+)
 
 metadata = MetaData()
 
@@ -45,7 +45,7 @@ batch_log = Table(
     metadata,
     Column("id", String(32), primary_key=True),
     Column("batch_id", String(32), nullable=False),
-    Column("log_level", Enum(LogLevelOption)),
+    Column("log_level", Enum(value_objects.LogLevelOption)),
     Column("message", String(2000), nullable=False),
     Column("ts", DateTime, nullable=False),
 )
@@ -56,13 +56,13 @@ job_log = Table(
     Column("id", String(32), primary_key=True),
     Column("batch_id", String(32), nullable=False),
     Column("job_id", String(32), nullable=False),
-    Column("log_level", Enum(LogLevelOption)),
+    Column("log_level", Enum(value_objects.LogLevelOption)),
     Column("message", String(2000), nullable=False),
     Column("ts", DateTime, nullable=False),
 )
 
 jobs = Table(
-    "jobs",
+    "admin",
     metadata,
     Column("id", String(32), primary_key=True),
     Column("batch_id", ForeignKey("batches.id")),
@@ -77,7 +77,7 @@ job_test_results = Table(
     "job_test_results",
     metadata,
     Column("id", String(32), primary_key=True),
-    Column("job_id", ForeignKey("jobs.id")),
+    Column("job_id", ForeignKey("admin.id")),
     Column("test_name", String(100), nullable=False),
     Column("test_passed", Boolean, nullable=True),
     Column("test_failure_message", String(2000), nullable=True),
@@ -91,11 +91,11 @@ def set_schema(schema: value_objects.SchemaName) -> None:
 
 
 def start_mappers() -> None:
-    mapper(BatchLogEntryDTO, batch_log)
-    mapper(JobLogEntryDTO, job_log)
-    job_test_result_mapper = mapper(JobTestResultDTO, job_test_results)
+    mapper(batch_log_entry.BatchLogEntryDTO, batch_log)
+    mapper(job_log_entry.JobLogEntryDTO, job_log)
+    job_test_result_mapper = mapper(job_test_result.JobTestResultDTO, job_test_results)
     job_mapper = mapper(
-        JobResultDTO,
+        job_result.JobResultDTO,
         jobs,
         properties={
             "test_results": relationship(
@@ -106,7 +106,7 @@ def start_mappers() -> None:
         },
     )
     mapper(
-        BatchDTO,
+        batch.BatchDTO,
         batches,
         properties={
             "job_results": relationship(

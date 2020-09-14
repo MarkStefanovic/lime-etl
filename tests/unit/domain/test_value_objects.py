@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from src.domain import value_objects
+from domain import value_objects
 
 
 @pytest.mark.parametrize(
@@ -23,7 +23,7 @@ from src.domain import value_objects
         (value_objects.MaxRetries, 3),
         (value_objects.Password, "password"),
         (value_objects.Result, value_objects.Failure("Failed.")),
-        (value_objects.SchemaName, "etl"),
+        (value_objects.SchemaName, "manager"),
         (value_objects.SecondsBetweenRefreshes, 300),
         (value_objects.SingleChar, "T"),
         (value_objects.SMTPPort, 465),

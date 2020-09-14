@@ -10,7 +10,7 @@ from uuid import uuid4
 class ValueObject:
     __slots__ = ("value",)
 
-    def __init__(self, value: Any):
+    def __init__(self, value: Any, /):
         self.value = value
 
     def __eq__(self, other: object) -> bool:
@@ -58,7 +58,7 @@ class ValueObject:
 
 
 class Flag(ValueObject):
-    def __init__(self, value: bool):
+    def __init__(self, value: bool, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -69,7 +69,7 @@ class Flag(ValueObject):
                 f"{self.__class__.__name__} expects an integer, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class _PositiveInt(ValueObject):
@@ -88,11 +88,11 @@ class _PositiveInt(ValueObject):
                 f"{self.__class__.__name__} expects an integer, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class _NonEmptyStr(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -107,12 +107,12 @@ class _NonEmptyStr(ValueObject):
                 f"{self.__class__.__name__} expects a string, but got {value!r}."
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class Success(ValueObject):
     def __init__(self) -> None:
-        super().__init__(value=None)
+        super().__init__(None)
 
     def __repr__(self) -> str:
         return "Success()"
@@ -122,9 +122,9 @@ class Success(ValueObject):
 
 
 class Failure(ValueObject):
-    def __init__(self, message: str) -> None:
-        value = _NonEmptyStr(value=message).value
-        super().__init__(value=value)
+    def __init__(self, message: str, /) -> None:
+        value = _NonEmptyStr(message).value
+        super().__init__(value)
 
 
 class Result(ValueObject):
@@ -138,15 +138,15 @@ class Result(ValueObject):
                 f"but got {value!r}."
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
     @classmethod
-    def failure(cls, message: str) -> Result:
-        return Result(value=Failure(message=message))
+    def failure(cls, message: str, /) -> Result:
+        return Result(Failure(message))
 
     @classmethod
     def success(cls) -> Result:
-        return Result(value=Success())
+        return Result(Success())
 
     @property
     def failure_message(self) -> str:
@@ -175,7 +175,7 @@ class Result(ValueObject):
 
 
 class UniqueId(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -196,15 +196,15 @@ class UniqueId(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
     @classmethod
     def generate(cls) -> UniqueId:
-        return UniqueId(value=uuid4().hex)
+        return UniqueId(uuid4().hex)
 
 
 class SchemaName(ValueObject):
-    def __init__(self, value: Optional[str]):
+    def __init__(self, value: Optional[str], /):
         if value is None:
             ...
         elif isinstance(value, str):
@@ -216,11 +216,11 @@ class SchemaName(ValueObject):
         else:
             raise TypeError(f"{self.__class__.__name__} expects a str, but got {value!r}")
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class SingleChar(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if not value:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got {value!r}."
@@ -235,7 +235,7 @@ class SingleChar(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class JobName(ValueObject):
@@ -255,11 +255,11 @@ class JobName(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class SecondsBetweenRefreshes(ValueObject):
-    def __init__(self, value: int):
+    def __init__(self, value: int, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -274,11 +274,11 @@ class SecondsBetweenRefreshes(ValueObject):
                 f"{self.__class__.__name__} expects an int, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class TestName(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -294,7 +294,7 @@ class TestName(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 class Days(_PositiveInt):
     ...
@@ -317,7 +317,7 @@ class MaxRetries(_PositiveInt):
 
 
 class FlexPercent(ValueObject):
-    def __init__(self, value: float):
+    def __init__(self, value: float, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -332,11 +332,11 @@ class FlexPercent(ValueObject):
                 f"{self.__class__.__name__} expects a float, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class Timestamp(ValueObject):
-    def __init__(self, value: datetime.datetime):
+    def __init__(self, value: datetime.datetime, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -347,11 +347,11 @@ class Timestamp(ValueObject):
                 f"{self.__class__.__name__} expects a datetime.datetime, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
     @classmethod
     def now(cls) -> Timestamp:
-        return Timestamp(value=datetime.datetime.now())
+        return Timestamp(datetime.datetime.now())
 
 
 class SMTPServer(_NonEmptyStr):
@@ -363,7 +363,7 @@ class SMTPPort(_PositiveInt):
 
 
 class EmailAddress(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -379,11 +379,11 @@ class EmailAddress(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class EmailSubject(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -398,11 +398,11 @@ class EmailSubject(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
 
 class Password(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -417,7 +417,7 @@ class Password(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
     def __repr__(self) -> str:
         return f"Password({'*' * 10})"
@@ -437,7 +437,7 @@ class LogLevelOption(enum.Enum):
 
 
 class LogLevel(ValueObject):
-    def __init__(self, value: LogLevelOption):
+    def __init__(self, value: LogLevelOption, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -448,19 +448,19 @@ class LogLevel(ValueObject):
                 f"{self.__class__.__name__} expects a LogLevelOption value, but got {value!r}."
             )
 
-        super().__init__(value=value)
+        super().__init__(value)
 
     @classmethod
     def debug(cls) -> LogLevel:
-        return LogLevel(value=LogLevelOption.Debug)
+        return LogLevel(LogLevelOption.Debug)
 
     @classmethod
     def error(cls) -> LogLevel:
-        return LogLevel(value=LogLevelOption.Error)
+        return LogLevel(LogLevelOption.Error)
 
     @classmethod
     def info(cls) -> LogLevel:
-        return LogLevel(value=LogLevelOption.Info)
+        return LogLevel(LogLevelOption.Info)
 
     def __str__(self) -> str:
         if self.value == LogLevelOption.Debug:

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-from src.domain import value_objects
+from domain import value_objects
 
 
 @dataclass(unsafe_hash=True)
@@ -21,14 +21,16 @@ class JobTestResultDTO:
         if self.test_passed:
             test_success_or_failure = value_objects.Result.success()
         else:
-            test_success_or_failure = value_objects.Result.failure(self.test_failure_message or "No error message was provided.")
+            test_success_or_failure = value_objects.Result.failure(
+                self.test_failure_message or "No error message was provided."
+            )
 
         return JobTestResult(
-            id=value_objects.UniqueId(value=self.id),
-            job_id=value_objects.UniqueId(value=self.job_id),
-            test_name=value_objects.TestName(value=self.test_name),
+            id=value_objects.UniqueId(self.id),
+            job_id=value_objects.UniqueId(self.job_id),
+            test_name=value_objects.TestName(self.test_name),
             test_success_or_failure=test_success_or_failure,
-            ts=value_objects.Timestamp(value=self.ts),
+            ts=value_objects.Timestamp(self.ts),
         )
 
 

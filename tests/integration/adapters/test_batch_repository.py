@@ -2,25 +2,22 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from src.adapters.batch_repository import SqlAlchemyBatchRepository
-from src.domain import value_objects
-from src.domain.batch import Batch
-from src.domain.job_result import JobResult
-from src.domain.job_test_result import JobTestResult
+from adapters import batch_repository
+from domain import batch, job_result, job_test_result, value_objects
 from tests import conftest
 
 
 def test_sqlalchemy_batch_repository_add(session: Session) -> None:
     batch_id = value_objects.UniqueId("f00052d73ca54f649190d80aa26ea779")
     job_id = value_objects.UniqueId.generate()
-    test_result = JobTestResult(
+    test_result = job_test_result.JobTestResult(
         id=batch_id,
         job_id=job_id,
         test_name=value_objects.TestName("dummy_test"),
         test_success_or_failure=value_objects.Result.success(),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
     )
-    job = JobResult(
+    job = job_result.JobResult(
         id=job_id,
         batch_id=batch_id,
         job_name=value_objects.JobName("test_table"),
@@ -29,7 +26,7 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
         test_results=frozenset([test_result]),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
     )
-    new_batch = Batch(
+    new_batch = batch.Batch(
         id=batch_id,
         execution_millis=value_objects.ExecutionMillis(10),
         job_results=frozenset([job]),
@@ -39,7 +36,9 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
-    repo = SqlAlchemyBatchRepository(session=session, ts_adapter=ts_adapter)
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session, ts_adapter=ts_adapter
+    )
     repo.add(new_batch=new_batch)
     session.commit()
     actual_batches = [dict(row) for row in (session.execute("SELECT * FROM batches"))]
@@ -67,7 +66,7 @@ def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> Non
     )
     session.execute(
         """
-        INSERT INTO jobs 
+        INSERT INTO admin 
             (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
             ('j1396d94bd55a455baf80a26209349d6', 'b1396d94bd55a455baf80a26209349d6', 'test_table', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
@@ -78,7 +77,10 @@ def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> Non
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2020, 1, 1, 1, 1, 1)
     )
-    repo = SqlAlchemyBatchRepository(session=session, ts_adapter=ts_adapter,)
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session,
+        ts_adapter=ts_adapter,
+    )
     rows_deleted = repo.delete_old_entries(days_to_keep=value_objects.DaysToKeep(10))
     session.commit()
     assert rows_deleted == 1
@@ -98,7 +100,7 @@ def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> Non
     assert actual_batch_rows == expected_batch_rows
 
     actual_table_update_rows = [
-        dict(row) for row in (session.execute("SELECT * FROM jobs"))
+        dict(row) for row in (session.execute("SELECT * FROM admin"))
     ]
     expected_table_update_rows = [
         {
@@ -133,7 +135,7 @@ def test_get_latest(session: Session) -> None:
     )
     session.execute(
         f"""
-        INSERT INTO jobs 
+        INSERT INTO admin 
             (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
             ({job_id_1!r}, {batch_id_1!r}, 'test_table', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
@@ -143,14 +145,16 @@ def test_get_latest(session: Session) -> None:
     )
     session.commit()
     ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
-    repo = SqlAlchemyBatchRepository(session=session, ts_adapter=ts_adapter)
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session, ts_adapter=ts_adapter
+    )
     result = repo.get_latest()
-    expected = Batch(
+    expected = batch.Batch(
         id=value_objects.UniqueId("b2396d94bd55a455baf80a26209349d6"),
         execution_millis=value_objects.ExecutionMillis(10),
         job_results=frozenset(
             {
-                JobResult(
+                job_result.JobResult(
                     id=value_objects.UniqueId("j3396d94bd55a455baf80a26209349d6"),
                     batch_id=value_objects.UniqueId("b2396d94bd55a455baf80a26209349d6"),
                     job_name=value_objects.JobName("test_table"),
@@ -180,7 +184,7 @@ def test_get_latest_test_results_for_job(session: Session) -> None:
     )
     session.execute(
         f"""
-        INSERT INTO jobs 
+        INSERT INTO admin 
             (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
             ('j1396d94bd55a455baf80a26209349d6', 'b1396d94bd55a455baf80a26209349d6', 'test_job', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
@@ -201,17 +205,19 @@ def test_get_latest_test_results_for_job(session: Session) -> None:
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2020, 1, 1, 5, 1, 1)
     )
-    repo = SqlAlchemyBatchRepository(session=session, ts_adapter=ts_adapter)
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session, ts_adapter=ts_adapter
+    )
     actual = repo.get_latest_test_results_for_job(value_objects.JobName("test_job"))
     expected = [
-        JobTestResult(
+        job_test_result.JobTestResult(
             id=value_objects.UniqueId("i1396d94bd55a455baf80a26209349d6"),
             job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
             test_name=value_objects.TestName("dummy_test_1"),
             test_success_or_failure=value_objects.Result.success(),
             ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
         ),
-        JobTestResult(
+        job_test_result.JobTestResult(
             id=value_objects.UniqueId("i2396d94bd55a455baf80a26209349d6"),
             job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
             test_name=value_objects.TestName("dummy_test_2"),

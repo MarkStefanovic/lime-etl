@@ -4,9 +4,7 @@ setup(
     name="lime-etl",
     version="0.1.0",
     packages=[
-        "domain",
-        "adapters",
-        "services",
+        "manager",
     ],
     url="",
     license="MIT",

@@ -5,19 +5,12 @@ from typing import Any
 
 from sqlalchemy.orm import sessionmaker
 
-import src.adapters.job_log_repository
-from src import settings
-from src.adapters import (
-    batch_log_repository,
-    batch_repository,
-    email_adapter,
-    job_log_repository,
-    timestamp_adapter,
-)
+import adapters.job_log_repository
+from adapters import batch_repository, timestamp_adapter
+from adapters import batch_log_repository, email_adapter, job_log_repository
 
 
 class UnitOfWork(abc.ABC):
-    settings: settings.Settings
     ts_adapter: timestamp_adapter.TimestampAdapter
     batches: batch_repository.BatchRepository
     batch_log: batch_log_repository.BatchLogRepository
@@ -40,23 +33,23 @@ class UnitOfWork(abc.ABC):
 
 
 class DefaultUnitOfWork(UnitOfWork):
-    def __init__(
-        self, session_factory: sessionmaker, project_settings: settings.Settings,
-    ):
+    def __init__(self, session_factory: sessionmaker):
         self._session_factory = session_factory
-        self.settings = project_settings
         self.ts_adapter = timestamp_adapter.LocalTimestampAdapter()
 
     def __enter__(self) -> UnitOfWork:
         self._session = self._session_factory()
         self.batches = batch_repository.SqlAlchemyBatchRepository(
-            session=self._session, ts_adapter=self.ts_adapter,
+            session=self._session,
+            ts_adapter=self.ts_adapter,
         )
         self.batch_log = batch_log_repository.SqlAlchemyBatchLogRepository(
-            session=self._session, ts_adapter=self.ts_adapter,
+            session=self._session,
+            ts_adapter=self.ts_adapter,
         )
-        self.job_log = src.adapters.job_log_repository.SqlAlchemyJobLogRepository(
-            session=self._session, ts_adapter=self.ts_adapter,
+        self.job_log = adapters.job_log_repository.SqlAlchemyJobLogRepository(
+            session=self._session,
+            ts_adapter=self.ts_adapter,
         )
         return super().__enter__()
 

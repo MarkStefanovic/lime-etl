@@ -6,21 +6,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, clear_mappers, sessionmaker
 
-from src.adapters import (
-    batch_log_repository,
-    batch_repository,
-    job_log_repository,
-    timestamp_adapter,
-)
-from src.adapters.orm import metadata, start_mappers
-from src.domain import (
+from adapters import batch_repository, timestamp_adapter
+from adapters import batch_log_repository, job_log_repository
+from adapters.orm import metadata, start_mappers
+from domain import (
     batch,
     batch_log_entry,
     job_log_entry,
     job_test_result,
     value_objects,
 )
-from src.services import unit_of_work
+from services import unit_of_work
 
 
 @pytest.fixture
