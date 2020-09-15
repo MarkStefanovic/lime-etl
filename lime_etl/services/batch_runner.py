@@ -43,7 +43,11 @@ def run(
             value_objects.LogMessage(f"Staring batch {batch_id.value}...")
         )
         result = _run_batch(
-            uow=uow, batch_id=batch_id, jobs=jobs, ts_adapter=ts_adapter
+            batch_logger=batch_logger,
+            uow=uow,
+            batch_id=batch_id,
+            jobs=jobs,
+            ts_adapter=ts_adapter,
         )
         uow.batches.add(result)
         batch_logger.log_info(value_objects.LogMessage("Batch finished."))
@@ -57,34 +61,51 @@ def run(
 
 
 def _run_batch(
+    batch_logger: batch_logging_service.BatchLoggingService,
     uow: unit_of_work.UnitOfWork,
     batch_id: value_objects.UniqueId,
     jobs: typing.Iterable[job_spec.JobSpec],
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> batch.Batch:
     job_results: List[job_result.JobResult] = []
-    start_time = datetime.datetime.now()
+    start_time = ts_adapter.now().value
     for job in jobs:
-        job_id = value_objects.UniqueId.generate()
-        job_logger = job_logging_service.DefaultJobLoggingService(
-            uow=uow, batch_id=batch_id, job_id=job_id
-        )
-        result = job_runner.default_job_runner(
-            uow=uow,
-            job=job,
-            logger=job_logger,
-            batch_id=batch_id,
-            job_id=job_id,
-            ts_adapter=ts_adapter,
-        )
-        job_results.append(result)
+        with uow:
+            last_ts = uow.batches.get_last_successful_ts_for_job(job_name=job.job_name)
 
-    end_time = datetime.datetime.now()
-    execution_millis = int((end_time - start_time).total_seconds() * 1000)
-    return batch.Batch(
-        id=batch_id,
-        execution_millis=value_objects.ExecutionMillis(execution_millis),
-        job_results=frozenset(job_results),
-        execution_success_or_failure=value_objects.Result.success(),
-        ts=uow.ts_adapter.now(),
-    )
+        if last_ts:
+            seconds_since_last_refresh = (
+                uow.ts_adapter.now().value - last_ts.value
+            ).total_seconds()
+            if seconds_since_last_refresh < job.seconds_between_refreshes.value:
+                batch_logger.log_info(
+                    value_objects.LogMessage(
+                        f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
+                        f"ago and it is set to refresh every {job.seconds_between_refreshes.value} seconds, "
+                        f"so there is no need to refresh again."
+                    )
+                )
+            else:
+                job_id = value_objects.UniqueId.generate()
+                job_logger = job_logging_service.DefaultJobLoggingService(
+                    uow=uow, batch_id=batch_id, job_id=job_id
+                )
+                result = job_runner.default_job_runner(
+                    uow=uow,
+                    job=job,
+                    logger=job_logger,
+                    batch_id=batch_id,
+                    job_id=job_id,
+                    ts_adapter=ts_adapter,
+                )
+                job_results.append(result)
+
+            end_time = ts_adapter.now().value
+            execution_millis = int((end_time - start_time).total_seconds() * 1000)
+            return batch.Batch(
+                id=batch_id,
+                execution_millis=value_objects.ExecutionMillis(execution_millis),
+                job_results=frozenset(job_results),
+                execution_success_or_failure=value_objects.Result.success(),
+                ts=uow.ts_adapter.now(),
+            )

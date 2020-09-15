@@ -130,7 +130,9 @@ class Failure(ValueObject):
 class Result(ValueObject):
     def __init__(self, value: Union[Failure, Success]) -> None:
         if value is None:
-            raise ValueError(f"{self.__class__.__name__} value is required, but got None.")
+            raise ValueError(
+                f"{self.__class__.__name__} value is required, but got None."
+            )
 
         if not isinstance(value, (Failure, Success)):
             raise TypeError(
@@ -214,7 +216,9 @@ class SchemaName(ValueObject):
                     f"character long, but got {value!r}."
                 )
         else:
-            raise TypeError(f"{self.__class__.__name__} expects a str, but got {value!r}")
+            raise TypeError(
+                f"{self.__class__.__name__} expects a str, but got {value!r}"
+            )
 
         super().__init__(value)
 
@@ -295,6 +299,7 @@ class TestName(ValueObject):
             )
 
         super().__init__(value)
+
 
 class Days(_PositiveInt):
     ...
@@ -475,3 +480,21 @@ class LogLevel(ValueObject):
 
 class LogMessage(_NonEmptyStr):
     ...
+
+
+class SecondsSinceLastRefresh(ValueObject):
+    def __init__(self, value: Optional[int], /):
+        if value is None:
+            ...
+        elif isinstance(value, int):
+            if not value:
+                raise ValueError(
+                    f"If a {self.__class__.__name__} value is provided, then it must be positive, "
+                    f"but got {value!r}."
+                )
+        else:
+            raise TypeError(
+                f"{self.__class__.__name__} expects an int, but got {value!r}"
+            )
+
+        super().__init__(value)

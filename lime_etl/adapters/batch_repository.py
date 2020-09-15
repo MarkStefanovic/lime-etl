@@ -15,9 +15,7 @@ class BatchRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_old_entries(
-        self, days_to_keep: value_objects.DaysToKeep
-    ) -> int:
+    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -28,6 +26,12 @@ class BatchRepository(abc.ABC):
     def get_latest_test_results_for_job(
         self, job_name: value_objects.JobName
     ) -> List[job_test_result.JobTestResult]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_last_successful_ts_for_job(
+        self, job_name: value_objects.JobName
+    ) -> Optional[value_objects.Timestamp]:
         raise NotImplementedError
 
 
@@ -45,19 +49,16 @@ class SqlAlchemyBatchRepository(BatchRepository):
         return new_batch
 
     def delete_old_entries(
-        self, days_to_keep: value_objects.DaysToKeep,
+        self,
+        days_to_keep: value_objects.DaysToKeep,
     ) -> int:
         ts = self._ts_adapter.now().value
-        cutoff: datetime.datetime = ts - datetime.timedelta(
-            days=days_to_keep.value
-        )
+        cutoff: datetime.datetime = ts - datetime.timedelta(days=days_to_keep.value)
         # We need to delete batches one by one to trigger cascade deletes, a bulk update will
         # not trigger them, and we don't want to rely on specific database implementations, so
         # we cannot use ondelete='CASCADE' on the foreign key columns.
         batches: List[batch.BatchDTO] = (
-            self._session.query(batch.BatchDTO)
-            .filter(batch.BatchDTO.ts < cutoff)
-            .all()
+            self._session.query(batch.BatchDTO).filter(batch.BatchDTO.ts < cutoff).all()
         )
         for b in batches:
             self._session.delete(b)
@@ -87,3 +88,18 @@ class SqlAlchemyBatchRepository(BatchRepository):
             return []
         else:
             return [tr.to_domain() for tr in jr.test_results]
+
+    def get_last_successful_ts_for_job(
+        self, job_name: value_objects.JobName
+    ) -> Optional[value_objects.Timestamp]:
+        jr: Optional[job_result.JobResultDTO] = (
+            self._session.query(job_result.JobResultDTO)
+            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
+            .filter(job_result.JobResultDTO.execution_error_occurred.is_(False))
+            .order_by(desc(job_result.JobResultDTO.ts))
+            .first()
+        )
+        if jr is None:
+            return None
+        else:
+            return value_objects.Timestamp(jr.ts)
