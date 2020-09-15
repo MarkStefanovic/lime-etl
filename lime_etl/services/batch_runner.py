@@ -59,7 +59,7 @@ def run(
             jobs=jobs,
             ts_adapter=ts_adapter,
         )
-        uow.batches.add(result)
+        uow.batches.update(result)
         batch_logger.log_info(value_objects.LogMessage("Batch finished."))
         return batch_delta.BatchDelta(
             current_results=result,

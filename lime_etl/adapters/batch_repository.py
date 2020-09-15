@@ -1,4 +1,5 @@
 import abc
+import dataclasses
 import datetime
 from typing import List, Optional
 
@@ -36,6 +37,10 @@ class BatchRepository(abc.ABC):
     def get_last_successful_ts_for_job(
         self, job_name: value_objects.JobName
     ) -> Optional[value_objects.Timestamp]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def update(self, batch_to_update: batch.Batch) -> batch.Batch:
         raise NotImplementedError
 
 
@@ -112,3 +117,20 @@ class SqlAlchemyBatchRepository(BatchRepository):
             return None
         else:
             return value_objects.Timestamp(jr.ts)
+
+    def update(self, batch_to_update: batch.Batch) -> batch.Batch:
+        dto = batch_to_update.to_dto()
+
+        # d = dataclasses.asdict(dto)
+        # del d["id"]
+        self._session.merge(dto)
+        # )
+        # self._session.query(batch.BatchDTO).filter(batch.BatchDTO.id == dto.id).update(dataclasses.asdict(dto))
+        #     execution_error_message=dto.execution_error_message,
+        #     execution_error_occurred=dto.execution_error_occurred,
+        #     execution_millis=dto.execution_millis,
+        #     job_results=dto.job_results,
+        #     running=dto.running,
+        #     ts=dto.ts,
+        # )
+        return batch_to_update

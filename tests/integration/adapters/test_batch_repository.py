@@ -122,6 +122,50 @@ def test_sqlalchemy_batch_repository_add_job_result(session: Session) -> None:
     assert actual_jobs == expected_jobs
 
 
+def test_sqlalchemy_batch_repository_update(
+    session: Session,
+) -> None:
+    batch_id = value_objects.UniqueId("f00052d73ca54f649190d80aa26ea779")
+    ts_adapter = conftest.static_timestamp_adapter(
+        datetime.datetime(2001, 1, 2, 3, 4, 5)
+    )
+
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session, ts_adapter=ts_adapter
+    )
+    new_batch = batch.Batch(
+        id=batch_id,
+        execution_millis=None,
+        job_results=frozenset([]),
+        execution_success_or_failure=None,
+        running=value_objects.Flag(True),
+        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
+    )
+    repo.add(new_batch=new_batch)
+    new_batch2 = batch.Batch(
+        id=batch_id,
+        execution_millis=value_objects.ExecutionMillis(10),
+        job_results=frozenset([]),
+        execution_success_or_failure=value_objects.Result.success(),
+        running=value_objects.Flag(False),
+        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 5, 1)),
+    )
+    repo.update(new_batch2)
+    session.commit()
+    actual_batches = [dict(row) for row in session.execute("SELECT * FROM batches")]
+    expected_batches = [
+        {
+            "execution_error_message": None,
+            "execution_error_occurred": 0,
+            "execution_millis": 10,
+            "id": "f00052d73ca54f649190d80aa26ea779",
+            "running": 0,
+            "ts": "2001-01-02 03:05:01.000000",
+        }
+    ]
+    assert actual_batches == expected_batches
+
+
 def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> None:
     session.execute(
         """
