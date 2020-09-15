@@ -34,9 +34,10 @@ batches = Table(
     "batches",
     metadata,
     Column("id", String(32), primary_key=True),
-    Column("execution_millis", Integer, nullable=False),
-    Column("execution_error_occurred", Boolean, nullable=False),
+    Column("execution_millis", Integer, nullable=True),
+    Column("execution_error_occurred", Boolean, nullable=True),
     Column("execution_error_message", String(2000), nullable=True),
+    Column("running", Boolean, nullable=False),
     Column("ts", DateTime, nullable=False),
 )
 
@@ -62,7 +63,7 @@ job_log = Table(
 )
 
 jobs = Table(
-    "admin",
+    "jobs",
     metadata,
     Column("id", String(32), primary_key=True),
     Column("batch_id", ForeignKey("batches.id")),
@@ -77,7 +78,7 @@ job_test_results = Table(
     "job_test_results",
     metadata,
     Column("id", String(32), primary_key=True),
-    Column("job_id", ForeignKey("admin.id")),
+    Column("job_id", ForeignKey("jobs.id")),
     Column("test_name", String(100), nullable=False),
     Column("test_passed", Boolean, nullable=True),
     Column("test_failure_message", String(2000), nullable=True),

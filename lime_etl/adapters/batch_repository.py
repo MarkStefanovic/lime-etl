@@ -15,6 +15,10 @@ class BatchRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def add_job_result(self, result: job_result.JobResult) -> job_result.JobResult:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
         raise NotImplementedError
 
@@ -48,6 +52,11 @@ class SqlAlchemyBatchRepository(BatchRepository):
         self._session.add(dto)
         return new_batch
 
+    def add_job_result(self, result: job_result.JobResult) -> job_result.JobResult:
+        dto = result.to_dto()
+        self._session.add(dto)
+        return result
+
     def delete_old_entries(
         self,
         days_to_keep: value_objects.DaysToKeep,
@@ -80,7 +89,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
     ) -> List[job_test_result.JobTestResult]:
         jr: Optional[job_result.JobResultDTO] = (
             self._session.query(job_result.JobResultDTO)
-            .filter(job_result.JobResultDTO.job_name.like(job_name.value))  # type: ignore
+            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
             .order_by(desc(job_result.JobResultDTO.ts))
             .first()
         )

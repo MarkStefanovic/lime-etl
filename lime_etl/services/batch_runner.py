@@ -39,6 +39,16 @@ def run(
     try:
         with uow:
             previous_results = uow.batches.get_latest()
+            new_batch = batch.Batch(
+                id=batch_id,
+                job_results=frozenset(),
+                execution_millis=None,
+                execution_success_or_failure=None,
+                running=value_objects.Flag(True),
+                ts=ts_adapter.now(),
+            )
+            uow.batches.add(new_batch)
+
         batch_logger.log_info(
             value_objects.LogMessage(f"Staring batch {batch_id.value}...")
         )
@@ -99,6 +109,8 @@ def _run_batch(
                     ts_adapter=ts_adapter,
                 )
                 job_results.append(result)
+                with uow:
+                    uow.batches.add_job_result(result)
 
             end_time = ts_adapter.now().value
             execution_millis = int((end_time - start_time).total_seconds() * 1000)
@@ -107,5 +119,6 @@ def _run_batch(
                 execution_millis=value_objects.ExecutionMillis(execution_millis),
                 job_results=frozenset(job_results),
                 execution_success_or_failure=value_objects.Result.success(),
+                running=value_objects.Flag(False),
                 ts=uow.ts_adapter.now(),
             )

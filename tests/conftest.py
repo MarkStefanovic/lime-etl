@@ -10,11 +10,7 @@ from adapters import batch_repository, timestamp_adapter
 from adapters import batch_log_repository, job_log_repository
 from adapters.orm import metadata, start_mappers
 from domain import (
-    batch,
-    batch_log_entry,
-    job_log_entry,
-    job_test_result,
-    value_objects,
+    batch, batch_log_entry, job_log_entry, job_result, job_test_result, value_objects,
 )
 from services import unit_of_work
 
@@ -98,12 +94,18 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         self.entries.append(batch)
         return batch
 
+    def add_job_result(self, result: job_result.JobResult) -> job_result.JobResult:
+        return result
+
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
         cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
             days=days_to_keep.value
         )
         self.entries = [e for e in self.entries if e.ts.value > cutoff]
         return len(self.entries)
+
+    def get_last_successful_ts_for_job(self, job_name: value_objects.JobName) -> Optional[value_objects.Timestamp]:
+        return self.get_latest().ts
 
     def get_latest(self) -> Optional[batch.Batch]:
         latest: batch.Batch = sorted(

@@ -31,6 +31,7 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
         execution_millis=value_objects.ExecutionMillis(10),
         job_results=frozenset([job]),
         execution_success_or_failure=value_objects.Result.success(),
+        running=value_objects.Flag(False),
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     ts_adapter = conftest.static_timestamp_adapter(
@@ -48,25 +49,92 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
             "execution_error_occurred": 0,
             "execution_millis": 10,
             "id": "f00052d73ca54f649190d80aa26ea779",
+            "running": 0,
             "ts": "2001-01-02 03:04:05.000000",
         }
     ]
     assert actual_batches == expected_batches
 
 
+def test_sqlalchemy_batch_repository_add_job_result(session: Session) -> None:
+    batch_id = value_objects.UniqueId("f00052d73ca54f649190d80aa26ea779")
+    ts_adapter = conftest.static_timestamp_adapter(
+        datetime.datetime(2001, 1, 2, 3, 4, 5)
+    )
+
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session, ts_adapter=ts_adapter
+    )
+    new_batch = batch.Batch(
+        id=batch_id,
+        execution_millis=None,
+        job_results=frozenset([]),
+        execution_success_or_failure=None,
+        running=value_objects.Flag(True),
+        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
+    )
+    repo.add(new_batch=new_batch)
+
+    job_id = value_objects.UniqueId("g00052d73ca54f649190d80aa26ea779")
+    test_result = job_test_result.JobTestResult(
+        id=batch_id,
+        job_id=job_id,
+        test_name=value_objects.TestName("dummy_test"),
+        test_success_or_failure=value_objects.Result.success(),
+        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
+    )
+    new_job = job_result.JobResult(
+        id=job_id,
+        batch_id=batch_id,
+        job_name=value_objects.JobName("test_table"),
+        execution_success_or_failure=value_objects.Result.success(),
+        execution_millis=value_objects.ExecutionMillis(10),
+        test_results=frozenset([test_result]),
+        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
+    )
+    repo.add_job_result(new_job)
+    session.commit()
+    actual_batches = [dict(row) for row in session.execute("SELECT * FROM batches")]
+    expected_batches = [
+        {
+            "execution_error_message": None,
+            "execution_error_occurred": None,
+            "execution_millis": None,
+            "id": "f00052d73ca54f649190d80aa26ea779",
+            "running": 1,
+            "ts": "2001-01-02 03:04:05.000000",
+        }
+    ]
+    assert actual_batches == expected_batches
+
+    actual_jobs = [dict(row) for row in session.execute("SELECT * FROM jobs")]
+    expected_jobs = [
+        {
+            "batch_id": "f00052d73ca54f649190d80aa26ea779",
+            "execution_error_message": None,
+            "execution_error_occurred": 0,
+            "execution_millis": 10,
+            "id": "g00052d73ca54f649190d80aa26ea779",
+            "job_name": "test_table",
+            "ts": "2010-01-01 01:01:01.000000",
+        }
+    ]
+    assert actual_jobs == expected_jobs
+
+
 def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> None:
     session.execute(
         """
             INSERT INTO batches 
-                (id, execution_millis, execution_error_occurred, execution_error_message, ts)
+                (id, execution_millis, execution_error_occurred, execution_error_message, running, ts)
             VALUES 
-                ('b1396d94bd55a455baf80a26209349d6', 10, 0, NULL, '2010-01-01 01:01:01.000000'),
-                ('b2396d94bd55a455baf80a26209349d6', 10, 0, NULL, '2020-01-01 01:01:01.000000');
+                ('b1396d94bd55a455baf80a26209349d6', 10, 0, NULL, 0, '2010-01-01 01:01:01.000000'),
+                ('b2396d94bd55a455baf80a26209349d6', 10, 0, NULL, 0, '2020-01-01 01:01:01.000000');
         """
     )
     session.execute(
         """
-        INSERT INTO admin 
+        INSERT INTO jobs 
             (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
             ('j1396d94bd55a455baf80a26209349d6', 'b1396d94bd55a455baf80a26209349d6', 'test_table', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
@@ -85,22 +153,21 @@ def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> Non
     session.commit()
     assert rows_deleted == 1
 
-    actual_batch_rows = [
-        dict(row) for row in (session.execute("SELECT * FROM batches"))
-    ]
+    actual_batch_rows = [dict(row) for row in session.execute("SELECT * FROM batches")]
     expected_batch_rows = [
         {
             "execution_error_message": None,
             "execution_error_occurred": 0,
             "execution_millis": 10,
             "id": "b2396d94bd55a455baf80a26209349d6",
+            "running": 0,
             "ts": "2020-01-01 01:01:01.000000",
         }
     ]
     assert actual_batch_rows == expected_batch_rows
 
     actual_table_update_rows = [
-        dict(row) for row in (session.execute("SELECT * FROM admin"))
+        dict(row) for row in session.execute("SELECT * FROM jobs")
     ]
     expected_table_update_rows = [
         {
@@ -126,16 +193,16 @@ def test_get_latest(session: Session) -> None:
     session.execute(
         f"""
             INSERT INTO batches 
-                (id, execution_millis, execution_error_occurred, execution_error_message, ts)
+                (id, execution_millis, execution_error_occurred, execution_error_message, running, ts)
             VALUES 
-                ({batch_id_1!r}, 10, 0, NULL, '2010-01-01 01:01:01.000000'),
-                ({batch_id_2!r}, 10, 0, NULL, '2010-01-02 01:01:01.000000'),
-                ({batch_id_3!r}, 10, 0, NULL, '2010-01-01 04:01:01.000000');
+                ({batch_id_1!r}, 10, 0, NULL, 0, '2010-01-01 01:01:01.000000'),
+                ({batch_id_2!r}, 10, 0, NULL, 0, '2010-01-02 01:01:01.000000'),
+                ({batch_id_3!r}, 10, 0, NULL, 0, '2010-01-01 04:01:01.000000');
         """
     )
     session.execute(
         f"""
-        INSERT INTO admin 
+        INSERT INTO jobs 
             (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
             ({job_id_1!r}, {batch_id_1!r}, 'test_table', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
@@ -166,6 +233,7 @@ def test_get_latest(session: Session) -> None:
             }
         ),
         execution_success_or_failure=value_objects.Result.success(),
+        running=value_objects.Flag(False),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 2, 1, 1, 1)),
     )
     assert result == expected
@@ -175,16 +243,16 @@ def test_get_latest_test_results_for_job(session: Session) -> None:
     session.execute(
         f"""
         INSERT INTO batches 
-            (id, execution_millis, execution_error_occurred, execution_error_message, ts)
+            (id, execution_millis, execution_error_occurred, execution_error_message, running, ts)
         VALUES 
-            ('b1396d94bd55a455baf80a26209349d6', 10, 0, NULL, '2010-01-01 01:01:01.000000'),
-            ('b2396d94bd55a455baf80a26209349d6', 10, 0, NULL, '2010-01-02 01:01:01.000000'),
-            ('b3396d94bd55a455baf80a26209349d6', 10, 0, NULL, '2010-01-01 04:01:01.000000');
+            ('b1396d94bd55a455baf80a26209349d6', 10, 0, NULL, 0, '2010-01-01 01:01:01.000000'),
+            ('b2396d94bd55a455baf80a26209349d6', 10, 0, NULL, 0, '2010-01-02 01:01:01.000000'),
+            ('b3396d94bd55a455baf80a26209349d6', 10, 0, NULL, 0, '2010-01-01 04:01:01.000000');
     """
     )
     session.execute(
         f"""
-        INSERT INTO admin 
+        INSERT INTO jobs 
             (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
             ('j1396d94bd55a455baf80a26209349d6', 'b1396d94bd55a455baf80a26209349d6', 'test_job', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
