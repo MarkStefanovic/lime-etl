@@ -20,16 +20,20 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         return value_objects.FlexPercent(0)
 
     @property
+    def max_retries(self) -> value_objects.MaxRetries:
+        return value_objects.MaxRetries(1)
+
+    @property
+    def job_name(self) -> value_objects.JobName:
+        return value_objects.JobName("delete_old_logs")
+
+    @property
     def seconds_between_refreshes(self) -> value_objects.SecondsBetweenRefreshes:
         return value_objects.SecondsBetweenRefreshes(60 * 60 * 24)
 
     @property
     def timeout_seconds(self) -> value_objects.TimeoutSeconds:
         return value_objects.TimeoutSeconds(300)
-
-    @property
-    def max_retries(self) -> value_objects.MaxRetries:
-        return value_objects.MaxRetries(1)
 
     def run(
         self,

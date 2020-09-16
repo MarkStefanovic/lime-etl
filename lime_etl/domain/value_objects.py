@@ -73,7 +73,7 @@ class Flag(ValueObject):
 
 
 class _PositiveInt(ValueObject):
-    def __init__(self, value: int):
+    def __init__(self, value: int, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -128,7 +128,7 @@ class Failure(ValueObject):
 
 
 class Result(ValueObject):
-    def __init__(self, value: Union[Failure, Success]) -> None:
+    def __init__(self, value: Union[Failure, Success], /) -> None:
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -243,7 +243,7 @@ class SingleChar(ValueObject):
 
 
 class JobName(ValueObject):
-    def __init__(self, value: str):
+    def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."

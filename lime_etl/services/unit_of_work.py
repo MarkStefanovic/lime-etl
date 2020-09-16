@@ -6,8 +6,8 @@ from typing import Any
 from sqlalchemy.orm import sessionmaker
 
 import adapters.job_log_repository  # type: ignore
-from adapters import batch_repository, timestamp_adapter  # type: ignore
-from adapters import batch_log_repository, email_adapter, job_log_repository  # type: ignore
+from adapters import batch_repository, timestamp_adapter
+from adapters import batch_log_repository, email_adapter, job_log_repository
 
 
 class UnitOfWork(abc.ABC):

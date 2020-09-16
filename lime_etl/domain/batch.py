@@ -46,6 +46,18 @@ class Batch:
     running: value_objects.Flag
     ts: value_objects.Timestamp
 
+    def __post_init__(self) -> None:
+        if self.running.value:
+            if self.execution_success_or_failure:
+                raise ValueError("If a batch is running, we cannot know whether the run was successful or not.")
+            if self.execution_millis:
+                raise ValueError("If a batch is running, we cannot know how many milliseconds it took to run.")
+        else:
+            if self.execution_success_or_failure is None:
+                raise ValueError("If a bach has finished, then we should know the result.")
+            if self.execution_millis is None:
+                raise ValueError("If a batch has finished, then we should know how many milliseconds it took to run.")
+
     @property
     def job_names(self) -> typing.Set[value_objects.JobName]:
         return {job.job_name for job in self.job_results}

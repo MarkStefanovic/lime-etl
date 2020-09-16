@@ -1,16 +1,15 @@
-import datetime
 from typing import List, Protocol, runtime_checkable
 
 import typing
 
 from adapters import timestamp_adapter  # type: ignore
 from domain import batch_delta  # type: ignore
-from domain import batch, job_result, job_spec, value_objects  # type: ignore
+from domain import batch, job_result, job_spec, value_objects
 from services import (  # type: ignore
     batch_logging_service,
     job_runner,
 )
-from services import job_logging_service, unit_of_work  # type: ignore
+from services import job_logging_service, unit_of_work
 
 
 @runtime_checkable

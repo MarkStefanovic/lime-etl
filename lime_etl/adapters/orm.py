@@ -10,8 +10,9 @@ from sqlalchemy import (
     Table,
 )
 from sqlalchemy.orm import mapper, relationship
+from sqlalchemy.orm.base import _is_mapped_class
 
-from domain import (   # type: ignore
+from domain import (  # type: ignore
     batch,
     job_result,
     job_log_entry,
@@ -19,6 +20,7 @@ from domain import (   # type: ignore
     batch_log_entry,
     value_objects,
 )
+
 
 metadata = MetaData()
 
@@ -92,26 +94,29 @@ def set_schema(schema: value_objects.SchemaName) -> None:
 
 
 def start_mappers() -> None:
-    mapper(batch_log_entry.BatchLogEntryDTO, batch_log)
-    mapper(job_log_entry.JobLogEntryDTO, job_log)
-    job_test_result_mapper = mapper(job_test_result.JobTestResultDTO, job_test_results)
-    job_mapper = mapper(
-        job_result.JobResultDTO,
-        jobs,
-        properties={
-            "test_results": relationship(
-                job_test_result_mapper,
-                cascade="all,delete,delete-orphan",
-                collection_class=list,
-            ),
-        },
-    )
-    mapper(
-        batch.BatchDTO,
-        batches,
-        properties={
-            "job_results": relationship(
-                job_mapper, cascade="all,delete,delete-orphan", collection_class=list,
-            ),
-        },
-    )
+    if not _is_mapped_class(batch_log_entry.BatchLogEntryDTO):
+        mapper(batch_log_entry.BatchLogEntryDTO, batch_log)
+        mapper(job_log_entry.JobLogEntryDTO, job_log)
+        job_test_result_mapper = mapper(job_test_result.JobTestResultDTO, job_test_results)
+        job_mapper = mapper(
+            job_result.JobResultDTO,
+            jobs,
+            properties={
+                "test_results": relationship(
+                    job_test_result_mapper,
+                    cascade="all,delete,delete-orphan",
+                    collection_class=list,
+                ),
+            },
+        )
+        mapper(
+            batch.BatchDTO,
+            batches,
+            properties={
+                "job_results": relationship(
+                    job_mapper,
+                    cascade="all,delete,delete-orphan",
+                    collection_class=list,
+                ),
+            },
+        )
