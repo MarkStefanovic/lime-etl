@@ -11,7 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, relationship
 
-from domain import (
+from domain import (   # type: ignore
     batch,
     job_result,
     job_log_entry,

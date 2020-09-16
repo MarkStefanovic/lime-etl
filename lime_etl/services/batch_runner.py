@@ -3,14 +3,14 @@ from typing import List, Protocol, runtime_checkable
 
 import typing
 
-from adapters import timestamp_adapter
-from domain import batch_delta
-from domain import batch, job_result, job_spec, value_objects
-from services import (
+from adapters import timestamp_adapter  # type: ignore
+from domain import batch_delta  # type: ignore
+from domain import batch, job_result, job_spec, value_objects  # type: ignore
+from services import (  # type: ignore
     batch_logging_service,
     job_runner,
 )
-from services import job_logging_service, unit_of_work
+from services import job_logging_service, unit_of_work  # type: ignore
 
 
 @runtime_checkable
@@ -95,30 +95,31 @@ def _run_batch(
                         f"so there is no need to refresh again."
                     )
                 )
-            else:
-                job_id = value_objects.UniqueId.generate()
-                job_logger = job_logging_service.DefaultJobLoggingService(
-                    uow=uow, batch_id=batch_id, job_id=job_id
-                )
-                result = job_runner.default_job_runner(
-                    uow=uow,
-                    job=job,
-                    logger=job_logger,
-                    batch_id=batch_id,
-                    job_id=job_id,
-                    ts_adapter=ts_adapter,
-                )
-                job_results.append(result)
-                with uow:
-                    uow.batches.add_job_result(result)
+                continue
 
-            end_time = ts_adapter.now().value
-            execution_millis = int((end_time - start_time).total_seconds() * 1000)
-            return batch.Batch(
-                id=batch_id,
-                execution_millis=value_objects.ExecutionMillis(execution_millis),
-                job_results=frozenset(job_results),
-                execution_success_or_failure=value_objects.Result.success(),
-                running=value_objects.Flag(False),
-                ts=uow.ts_adapter.now(),
-            )
+        job_id = value_objects.UniqueId.generate()
+        job_logger = job_logging_service.DefaultJobLoggingService(
+            uow=uow, batch_id=batch_id, job_id=job_id
+        )
+        result = job_runner.default_job_runner(
+            uow=uow,
+            job=job,
+            logger=job_logger,
+            batch_id=batch_id,
+            job_id=job_id,
+            ts_adapter=ts_adapter,
+        )
+        job_results.append(result)
+        with uow:
+            uow.batches.add_job_result(result)
+
+    end_time = ts_adapter.now().value
+    execution_millis = int((end_time - start_time).total_seconds() * 1000)
+    return batch.Batch(
+        id=batch_id,
+        execution_millis=value_objects.ExecutionMillis(execution_millis),
+        job_results=frozenset(job_results),
+        execution_success_or_failure=value_objects.Result.success(),
+        running=value_objects.Flag(False),
+        ts=uow.ts_adapter.now(),
+    )

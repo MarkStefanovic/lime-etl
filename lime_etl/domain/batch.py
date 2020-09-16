@@ -5,7 +5,7 @@ import dataclasses
 
 import typing
 
-from domain import job_result, value_objects
+from domain import job_result, value_objects  # type: ignore
 
 
 @dataclasses.dataclass(unsafe_hash=True)

@@ -3,10 +3,10 @@ import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from adapters import timestamp_adapter
-from adapters import batch_log_repository
-from domain.batch_log_entry import BatchLogEntry, BatchLogEntryDTO
-from domain.value_objects import (
+from adapters import timestamp_adapter  # type: ignore
+from adapters import batch_log_repository  # type: ignore
+from domain.batch_log_entry import BatchLogEntry, BatchLogEntryDTO  # type: ignore
+from domain.value_objects import (  # type: ignore
     DaysToKeep, LogLevel, LogLevelOption, LogMessage, Timestamp, UniqueId,
 )
 from tests import conftest

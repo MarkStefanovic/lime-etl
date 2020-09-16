@@ -1,6 +1,6 @@
 import datetime
 
-from domain import job_test_result, value_objects
+from domain import job_test_result, value_objects  # type: ignore
 
 
 def test_job_test_result_convertible_to_dto() -> None:

@@ -1,8 +1,8 @@
 import pytest
 
-from adapters import job_log_repository
-from domain import value_objects
-from services import job_logging_service
+from adapters import job_log_repository  # type: ignore
+from domain import value_objects  # type: ignore
+from services import job_logging_service  # type: ignore
 from tests import conftest
 
 

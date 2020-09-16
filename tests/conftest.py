@@ -6,13 +6,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, clear_mappers, sessionmaker
 
-from adapters import batch_repository, timestamp_adapter
+from adapters import batch_repository, timestamp_adapter  # type: ignore
 from adapters import batch_log_repository, job_log_repository
-from adapters.orm import metadata, start_mappers
-from domain import (
+from adapters.orm import metadata, start_mappers  # type: ignore
+from domain import (  # type: ignore
     batch, batch_log_entry, job_log_entry, job_result, job_test_result, value_objects,
 )
-from services import unit_of_work
+from services import unit_of_work  # type: ignore
 
 
 @pytest.fixture
@@ -105,7 +105,7 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         return len(self.entries)
 
     def get_last_successful_ts_for_job(self, job_name: value_objects.JobName) -> Optional[value_objects.Timestamp]:
-        return self.get_latest().ts
+        return self.get_latest().ts  # type: ignore
 
     def get_latest(self) -> Optional[batch.Batch]:
         latest: batch.Batch = sorted(
@@ -117,6 +117,9 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         self, job_name: value_objects.JobName
     ) -> List[job_test_result.JobTestResult]:
         return []
+
+    def update(self, batch_to_update: batch.Batch) -> batch.Batch:
+        pass
 
 
 class DummyUnitOfWork(unit_of_work.UnitOfWork):

@@ -2,9 +2,9 @@ import datetime
 import traceback
 from typing import Protocol
 
-from adapters import timestamp_adapter
-from domain import job_result, job_spec, value_objects
-from services import job_logging_service, unit_of_work
+from adapters import timestamp_adapter  # type: ignore
+from domain import job_result, job_spec, value_objects  # type: ignore
+from services import job_logging_service, unit_of_work  # type: ignore
 
 
 class JobRunner(Protocol):

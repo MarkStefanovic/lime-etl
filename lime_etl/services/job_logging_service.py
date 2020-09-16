@@ -1,8 +1,8 @@
 import abc
 
 
-from domain import job_log_entry, value_objects
-from services import unit_of_work
+from domain import job_log_entry, value_objects  # type: ignore
+from services import unit_of_work  # type: ignore
 
 
 class JobLoggingService(abc.ABC):

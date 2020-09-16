@@ -4,8 +4,8 @@ import abc
 from typing import Iterable, List
 
 
-from domain import job_test_result, value_objects
-from services import job_logging_service, unit_of_work
+from domain import job_test_result, value_objects  # type: ignore
+from services import job_logging_service, unit_of_work  # type: ignore
 
 
 class JobSpec(abc.ABC):

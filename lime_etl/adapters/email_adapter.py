@@ -2,7 +2,7 @@ import typing
 from email.message import EmailMessage
 from smtplib import SMTP
 
-from domain import batch_delta, value_objects
+from domain import batch_delta, value_objects  # type: ignore
 
 
 class EmailAdapter(typing.Protocol):

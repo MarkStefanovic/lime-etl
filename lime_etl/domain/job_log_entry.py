@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 
-from domain import value_objects
+from domain import value_objects  # type: ignore
 
 
 @dataclass(unsafe_hash=True)

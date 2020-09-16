@@ -1,10 +1,10 @@
-from setuptools import setup
+from setuptools import setup  # type: ignore
 
 setup(
     name="lime-etl",
     version="0.1.0",
     packages=[
-        "manager",
+        "lime_etl",
     ],
     url="",
     license="MIT",

@@ -3,8 +3,8 @@ import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from adapters import job_log_repository, timestamp_adapter
-from domain import job_log_entry, value_objects
+from adapters import job_log_repository, timestamp_adapter  # type: ignore
+from domain import job_log_entry, value_objects  # type: ignore
 from tests import conftest
 
 

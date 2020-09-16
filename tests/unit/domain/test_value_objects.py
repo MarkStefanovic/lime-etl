@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from domain import value_objects
+from domain import value_objects  # type: ignore
 
 
 @pytest.mark.parametrize(

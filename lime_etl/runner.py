@@ -5,10 +5,10 @@ import typing
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from adapters import email_adapter, orm, timestamp_adapter
-from domain import batch_delta, job_spec, value_objects
-from services import batch_runner, unit_of_work
-from services.admin import delete_old_logs
+from adapters import email_adapter, orm, timestamp_adapter  # type: ignore
+from domain import batch_delta, job_spec, value_objects  # type: ignore
+from services import batch_runner, unit_of_work  # type: ignore
+from services.admin import delete_old_logs  # type: ignore
 
 
 DEFAULT_ADMIN_JOBS = [

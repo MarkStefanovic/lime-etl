@@ -1,13 +1,12 @@
 import abc
-import dataclasses
 import datetime
 from typing import List, Optional
 
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from adapters import timestamp_adapter
-from domain import batch, job_result, job_test_result, value_objects
+from adapters import timestamp_adapter  # type: ignore
+from domain import batch, job_result, job_test_result, value_objects  # type: ignore
 
 
 class BatchRepository(abc.ABC):
@@ -94,7 +93,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
     ) -> List[job_test_result.JobTestResult]:
         jr: Optional[job_result.JobResultDTO] = (
             self._session.query(job_result.JobResultDTO)
-            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
+            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))
             .order_by(desc(job_result.JobResultDTO.ts))
             .first()
         )
@@ -108,7 +107,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
     ) -> Optional[value_objects.Timestamp]:
         jr: Optional[job_result.JobResultDTO] = (
             self._session.query(job_result.JobResultDTO)
-            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
+            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))
             .filter(job_result.JobResultDTO.execution_error_occurred.is_(False))
             .order_by(desc(job_result.JobResultDTO.ts))
             .first()
@@ -120,17 +119,5 @@ class SqlAlchemyBatchRepository(BatchRepository):
 
     def update(self, batch_to_update: batch.Batch) -> batch.Batch:
         dto = batch_to_update.to_dto()
-
-        # d = dataclasses.asdict(dto)
-        # del d["id"]
         self._session.merge(dto)
-        # )
-        # self._session.query(batch.BatchDTO).filter(batch.BatchDTO.id == dto.id).update(dataclasses.asdict(dto))
-        #     execution_error_message=dto.execution_error_message,
-        #     execution_error_occurred=dto.execution_error_occurred,
-        #     execution_millis=dto.execution_millis,
-        #     job_results=dto.job_results,
-        #     running=dto.running,
-        #     ts=dto.ts,
-        # )
         return batch_to_update

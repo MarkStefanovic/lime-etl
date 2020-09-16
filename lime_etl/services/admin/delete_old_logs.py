@@ -1,7 +1,7 @@
 from typing import Iterable, List
 
-from domain import job_spec, job_test_result, value_objects
-from services import job_logging_service, unit_of_work
+from domain import job_spec, job_test_result, value_objects  # type: ignore
+from services import job_logging_service, unit_of_work  # type: ignore
 
 
 class DeleteOldLogs(job_spec.AdminJobSpec):
