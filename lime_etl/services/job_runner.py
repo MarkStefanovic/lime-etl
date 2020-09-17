@@ -1,13 +1,14 @@
 import datetime
 import traceback
-from typing import Protocol
+
+import typing
 
 from adapters import timestamp_adapter  # type: ignore
-from domain import job_result, job_spec, value_objects  # type: ignore
+from domain import job_result, job_spec, job_test_result, value_objects  # type: ignore
 from services import job_logging_service, unit_of_work  # type: ignore
 
 
-class JobRunner(Protocol):
+class JobRunner(typing.Protocol):
     def __call__(
         self,
         uow: unit_of_work.UnitOfWork,
@@ -120,15 +121,30 @@ def _run_job_with_tests(
 ) -> job_result.JobResult:
     start_time = datetime.datetime.now()
     if isinstance(job, job_spec.AdminJobSpec):
-        job.run(uow=uow, logger=logger)
+        result = job.run(uow=uow, logger=logger)
+        test_results: typing.Collection[job_test_result.SimpleJobTestResult] = job.test(
+            logger=logger, uow=uow
+        )
     elif isinstance(job, job_spec.ETLJobSpec):
-        job.run(logger=logger)
+        result = job.run(logger=logger)
+        test_results: typing.Collection[job_test_result.SimpleJobTestResult] = job.test(
+            logger=logger
+        )
     else:
         raise ValueError(
             f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job}."
         )
-    test_results = job.test(logger=logger)
-    test_results = frozenset(test_results)
+
+    full_test_results = frozenset(
+        job_test_result.JobTestResult(
+            id=value_objects.UniqueId.generate(),
+            job_id=job_id,
+            test_name=test_result.test_name,
+            test_success_or_failure=test_result.test_success_or_failure,
+            ts=ts_adapter.now(),
+        )
+        for test_result in test_results
+    )
     end_time = datetime.datetime.now()
     execution_millis = int((end_time - start_time).total_seconds() * 1000)
     ts = ts_adapter.now()
@@ -136,7 +152,7 @@ def _run_job_with_tests(
         id=job_id,
         batch_id=batch_id,
         job_name=job.job_name,
-        test_results=test_results,
+        test_results=full_test_results,
         execution_millis=value_objects.ExecutionMillis(execution_millis),
         execution_success_or_failure=value_objects.Result.success(),
         ts=ts,

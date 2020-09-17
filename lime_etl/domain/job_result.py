@@ -50,7 +50,7 @@ class JobResult:
 
     @property
     def is_broken(self) -> bool:
-        return any(not result.test_passed for result in self.test_results)
+        return any(result.test_failed for result in self.test_results)
 
     def to_dto(self) -> JobResultDTO:
         test_results = [r.to_dto() for r in self.test_results]

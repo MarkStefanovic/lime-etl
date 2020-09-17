@@ -43,8 +43,12 @@ class JobTestResult:
     ts: value_objects.Timestamp
 
     @property
+    def test_failed(self) -> bool:
+        return self.test_success_or_failure.is_failure
+
+    @property
     def test_passed(self) -> bool:
-        return not self.test_success_or_failure.is_failure
+        return not self.test_failed
 
     def to_dto(self) -> JobTestResultDTO:
         return JobTestResultDTO(
@@ -55,3 +59,13 @@ class JobTestResult:
             test_passed=self.test_passed,
             ts=self.ts.value,
         )
+
+
+@dataclass(frozen=True)
+class SimpleJobTestResult:
+    test_name: value_objects.TestName
+    test_success_or_failure: value_objects.Result
+
+    @property
+    def test_passed(self) -> bool:
+        return not self.test_success_or_failure.is_failure

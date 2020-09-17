@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import abc
-from typing import Iterable, List
 
+import typing
 
 from domain import job_test_result, value_objects  # type: ignore
 from services import job_logging_service, unit_of_work  # type: ignore
@@ -11,7 +11,7 @@ from services import job_logging_service, unit_of_work  # type: ignore
 class JobSpec(abc.ABC):
     @property
     @abc.abstractmethod
-    def dependencies(self) -> List[JobSpec]:
+    def dependencies(self) -> typing.List[JobSpec]:
         raise NotImplementedError
 
     @property
@@ -39,20 +39,32 @@ class JobSpec(abc.ABC):
     def max_retries(self) -> value_objects.MaxRetries:
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def test(
-        self, logger: job_logging_service.JobLoggingService
-    ) -> Iterable[job_test_result.JobTestResult]:
-        raise NotImplementedError
-
 
 class AdminJobSpec(JobSpec):
     @abc.abstractmethod
-    def run(self, uow: unit_of_work.UnitOfWork, logger: job_logging_service.JobLoggingService) -> None:
+    def run(
+        self,
+        uow: unit_of_work.UnitOfWork,
+        logger: job_logging_service.JobLoggingService,
+    ) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def test(
+        self,
+        uow: unit_of_work.UnitOfWork,
+        logger: job_logging_service.JobLoggingService,
+    ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError
 
 
 class ETLJobSpec(JobSpec):
     @abc.abstractmethod
     def run(self, logger: job_logging_service.JobLoggingService) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def test(
+        self, logger: job_logging_service.JobLoggingService
+    ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError

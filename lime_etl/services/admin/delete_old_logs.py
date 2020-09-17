@@ -1,4 +1,6 @@
-from typing import Iterable, List
+import datetime
+import typing
+from typing import List
 
 from domain import job_spec, job_test_result, value_objects  # type: ignore
 from services import job_logging_service, unit_of_work  # type: ignore
@@ -41,17 +43,13 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         logger: job_logging_service.JobLoggingService,
     ) -> None:
         with uow:
-            uow.batch_log.delete_old_entries(
-                days_to_keep=self._days_to_keep
-            )
+            uow.batch_log.delete_old_entries(days_to_keep=self._days_to_keep)
             logger.log_info(
                 message=value_objects.LogMessage(
                     f"Deleted batch log entries older than {self._days_to_keep.value} days old."
                 ),
             )
-            uow.batch_log.delete_old_entries(
-                days_to_keep=self._days_to_keep
-            )
+            uow.batch_log.delete_old_entries(days_to_keep=self._days_to_keep)
             logger.log_info(
                 message=value_objects.LogMessage(
                     f"Deleted job log entries older than {self._days_to_keep.value} days old."
@@ -63,7 +61,36 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
 
     def test(
         self,
+        uow: unit_of_work,
         logger: job_logging_service.JobLoggingService,
-    ) -> Iterable[job_test_result.JobTestResult]:
-        # TODO implement
-        return []
+    ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
+
+        with uow:
+            ts = uow.ts_adapter.now().value
+            cutoff_date = datetime.datetime.combine(
+                (ts - datetime.timedelta(days=self._days_to_keep.value)).date(),
+                datetime.datetime.min.time(),
+            )
+            earliest_log_entry = uow.batch_log.get_earliest()
+
+        if earliest_log_entry.ts.value < cutoff_date:
+            return [
+                job_test_result.SimpleJobTestResult(
+                    test_name=value_objects.TestName(
+                        "No log entries more than than 3 days old"
+                    ),
+                    test_success_or_failure=value_objects.Result.failure(
+                        f"The earliest batch log entry is from "
+                        f"{earliest_log_entry.ts.value.strftime('%Y-%m-%d %H:%M:%S')}"
+                    ),
+                )
+            ]
+        else:
+            return [
+                job_test_result.SimpleJobTestResult(
+                    test_name=value_objects.TestName(
+                        "No log entries more than than 3 days old"
+                    ),
+                    test_success_or_failure=value_objects.Result.success(),
+                )
+            ]
