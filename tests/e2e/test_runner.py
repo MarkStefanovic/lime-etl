@@ -2,7 +2,6 @@ import tempfile
 from typing import Iterable, List
 
 import sqlalchemy as sa
-import typing
 
 from domain import job_spec, job_test_result, value_objects  # type: ignore
 from domain.job_spec import JobSpec  # type: ignore
@@ -80,8 +79,16 @@ def test_run_with_sqlite_using_default_parameters(
         value_objects.JobName("hello_world_job"),
         value_objects.JobName("hello_world_job2"),
     }
-    assert actual.current_results.broken_jobs == set(), [j.execution_success_or_failure.value for j in actual.current_results.job_results]
+    assert actual.current_results.broken_jobs == set(), [
+        j.execution_success_or_failure.value for j in actual.current_results.job_results
+    ]
     assert actual.current_results.running.value is False
     assert actual.current_results.execution_millis.value > 0
     assert actual.current_results.ts is not None
-    assert all(tr.execution_success_or_failure == value_objects.Result.success() for tr in actual.current_results.job_results), actual.current_results.job_results
+    job_execution_results = [
+        jr.execution_success_or_failure for jr in actual.current_results.job_results
+    ]
+    assert all(
+        jr.execution_success_or_failure == value_objects.Result.success()
+        for jr in actual.current_results.job_results
+    ), f"Expected all Success values, but got {job_execution_results}"

@@ -4,7 +4,7 @@ import abc
 
 import typing
 
-from domain import job_test_result, value_objects  # type: ignore
+from domain import job_result, job_test_result, value_objects  # type: ignore
 from services import job_logging_service, unit_of_work  # type: ignore
 
 
@@ -46,7 +46,7 @@ class AdminJobSpec(JobSpec):
         self,
         uow: unit_of_work.UnitOfWork,
         logger: job_logging_service.JobLoggingService,
-    ) -> None:
+    ) -> value_objects.Result:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -60,7 +60,9 @@ class AdminJobSpec(JobSpec):
 
 class ETLJobSpec(JobSpec):
     @abc.abstractmethod
-    def run(self, logger: job_logging_service.JobLoggingService) -> None:
+    def run(
+        self, logger: job_logging_service.JobLoggingService
+    ) -> value_objects.Result:
         raise NotImplementedError
 
     @abc.abstractmethod

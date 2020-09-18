@@ -67,6 +67,12 @@ class DummyBatchLogRepository(batch_log_repository.BatchLogRepository):
         self.batch_log = [e for e in self.batch_log if e.ts.value > cutoff]
         return len(self.batch_log)
 
+    def get_earliest(self) -> batch_log_entry.BatchLogEntry:
+        return self.batch_log[0]
+
+    def get_latest(self) -> batch_log_entry.BatchLogEntry:
+        return self.batch_log[-1]
+
 
 class DummyJobLogRepository(job_log_repository.JobLogRepository):
     def __init__(self) -> None:

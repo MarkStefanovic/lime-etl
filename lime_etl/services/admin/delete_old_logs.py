@@ -41,30 +41,34 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         self,
         uow: unit_of_work,
         logger: job_logging_service.JobLoggingService,
-    ) -> None:
+    ) -> value_objects.Result:
         with uow:
             uow.batch_log.delete_old_entries(days_to_keep=self._days_to_keep)
-            logger.log_info(
-                message=value_objects.LogMessage(
-                    f"Deleted batch log entries older than {self._days_to_keep.value} days old."
-                ),
-            )
-            uow.batch_log.delete_old_entries(days_to_keep=self._days_to_keep)
-            logger.log_info(
-                message=value_objects.LogMessage(
-                    f"Deleted job log entries older than {self._days_to_keep.value} days old."
-                ),
-            )
-
             uow.commit()
-            return None
+
+        logger.log_info(
+            message=value_objects.LogMessage(
+                f"Deleted batch log entries older than {self._days_to_keep.value} days old."
+            ),
+        )
+
+        with uow:
+            uow.job_log.delete_old_entries(days_to_keep=self._days_to_keep)
+            uow.commit()
+
+        logger.log_info(
+            message=value_objects.LogMessage(
+                f"Deleted job log entries older than {self._days_to_keep.value} days old."
+            ),
+        )
+
+        return value_objects.Result.success()
 
     def test(
         self,
         uow: unit_of_work,
         logger: job_logging_service.JobLoggingService,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
-
         with uow:
             ts = uow.ts_adapter.now().value
             cutoff_date = datetime.datetime.combine(
