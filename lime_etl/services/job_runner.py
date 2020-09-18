@@ -122,53 +122,37 @@ def _run_job_with_tests(
     start_time = datetime.datetime.now()
     if isinstance(job, job_spec.AdminJobSpec):
         result: value_objects.Result = job.run(uow=uow, logger=logger)
-        if result is None:
-            result = value_objects.Result.success()
-        elif isinstance(result, value_objects.Result):
-            logger.log_info(value_objects.LogMessage(f"[{job.job_name}] finished successfully."))
-        else:
-            raise ValueError(
-                f"A job should return an instance of either Success or Failure, but [{job.job_name}] "
-                f"returned {result!r}."
-            )
-        if result.is_failure:
-            logger.log_info(
-                value_objects.LogMessage(
-                    f"[{job.job_name}] failed, so there is no point in running the tests.  "
-                    f"They have been skipped."
-                )
-            )
-            test_results: typing.Collection[job_test_result.SimpleJobTestResult] = []
-        else:
-            logger.log_info(
-                value_objects.LogMessage(f"Running the tests for [{job.job_name}]")
-            )
-            test_results = job.test(logger=logger, uow=uow)
     elif isinstance(job, job_spec.ETLJobSpec):
         result = job.run(logger=logger)
-        if result is None:
-            result = value_objects.Result.success()
-        elif isinstance(result, value_objects.Result):
-            logger.log_info(value_objects.LogMessage(f"[{job.job_name}] finished successfully."))
-        else:
-            raise ValueError(
-                f"A job should return an instance of either Success or Failure, but [{job.job_name}] "
-                f"returned {result!r}."
-            )
-        if result.is_failure:
-            logger.log_info(
-                value_objects.LogMessage(
-                    f"{job.job_name} failed, so there is no point in running the tests.  "
-                    f"They have been skipped."
-                )
-            )
-            test_results = []
-        else:
-            test_results = job.test(logger=logger)
+    else:
+        raise ValueError(f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job}.")
+
+    if result is None:
+        result = value_objects.Result.success()
+    elif isinstance(result, value_objects.Result):
+        logger.log_info(value_objects.LogMessage(f"[{job.job_name}] finished successfully."))
     else:
         raise ValueError(
-            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job}."
+            f"A job should return an instance of either Success or Failure, but [{job.job_name}] "
+            f"returned {result!r}."
         )
+
+    if result.is_failure:
+        logger.log_info(
+            value_objects.LogMessage(
+                f"[{job.job_name}] failed, so there is no point in running the tests.  "
+                f"They have been skipped."
+            )
+        )
+        test_results: typing.Collection[job_test_result.SimpleJobTestResult] = []
+    else:
+        logger.log_info(
+            value_objects.LogMessage(f"Running the tests for [{job.job_name}]")
+        )
+        if isinstance(job, job_spec.AdminJobSpec):
+            test_results = job.test(logger=logger, uow=uow)
+        else:
+            test_results = job.test(logger=logger)
 
     if test_results:
         full_test_results = frozenset(
