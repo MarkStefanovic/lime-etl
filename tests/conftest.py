@@ -129,7 +129,7 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         )[0]
         return latest
 
-    def get_latest_results_for_job(
+    def get_latest_result_for_job(
         self, job_name: value_objects.JobName
     ) -> List[job_result.JobResult]:
         return []

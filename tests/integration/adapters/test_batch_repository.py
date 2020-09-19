@@ -376,7 +376,7 @@ def test_get_latest_results_for_job(session: Session) -> None:
     repo = batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
-    actual = repo.get_latest_results_for_job(
+    actual = repo.get_latest_result_for_job(
         value_objects.JobName("test_job")
     ).test_results
     expected = frozenset(

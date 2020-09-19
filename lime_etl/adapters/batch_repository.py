@@ -31,9 +31,9 @@ class BatchRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_latest_results_for_job(
+    def get_latest_result_for_job(
         self, job_name: value_objects.JobName
-    ) -> List[job_result.JobResult]:
+    ) -> Optional[job_result.JobResult]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -103,7 +103,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
         else:
             return result.to_domain()
 
-    def get_latest_results_for_job(
+    def get_latest_result_for_job(
         self, job_name: value_objects.JobName
     ) -> Optional[job_result.JobResult]:
         dto = (
