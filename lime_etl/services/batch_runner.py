@@ -47,9 +47,10 @@ def run(
                 ts=ts_adapter.now(),
             )
             uow.batches.add(new_batch)
+            uow.commit()
 
         batch_logger.log_info(
-            value_objects.LogMessage(f"Staring batch {batch_id.value}...")
+            value_objects.LogMessage(f"Staring batch [{batch_id.value}]...")
         )
         result = _run_batch(
             batch_logger=batch_logger,
@@ -59,7 +60,7 @@ def run(
             ts_adapter=ts_adapter,
         )
         uow.batches.update(result)
-        batch_logger.log_info(value_objects.LogMessage("Batch finished."))
+        batch_logger.log_info(value_objects.LogMessage(f"Batch [{batch_id.value}] finished."))
         return batch_delta.BatchDelta(
             current_results=result,
             previous_results=previous_results,
@@ -76,8 +77,9 @@ def _run_batch(
     jobs: typing.Iterable[job_spec.JobSpec],
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> batch.Batch:
+    start_ts = ts_adapter.now()
+
     job_results: List[job_result.JobResult] = []
-    start_time = ts_adapter.now().value
     for job in jobs:
         with uow:
             last_ts = uow.batches.get_last_successful_ts_for_job(job_name=job.job_name)
@@ -111,9 +113,10 @@ def _run_batch(
         job_results.append(result)
         with uow:
             uow.batches.add_job_result(result)
+            uow.commit()
 
     end_time = ts_adapter.now().value
-    execution_millis = int((end_time - start_time).total_seconds() * 1000)
+    execution_millis = int((end_time - start_ts.value).total_seconds() * 1000)
     return batch.Batch(
         id=batch_id,
         execution_millis=value_objects.ExecutionMillis(execution_millis),

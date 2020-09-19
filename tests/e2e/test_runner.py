@@ -4,7 +4,6 @@ from typing import Iterable, List
 import sqlalchemy as sa
 
 from domain import job_spec, job_test_result, value_objects  # type: ignore
-from domain.job_spec import JobSpec  # type: ignore
 from lime_etl import runner
 from services import job_logging_service  # type: ignore
 
@@ -20,8 +19,8 @@ class HelloWorldJob(job_spec.ETLJobSpec):
             self._file_created = True
 
     @property
-    def dependencies(self) -> List[JobSpec]:
-        return []
+    def dependencies(self) -> List[value_objects.JobName]:
+        return [value_objects.JobName("delete_old_logs")]
 
     @property
     def flex_pct(self) -> value_objects.FlexPercent:

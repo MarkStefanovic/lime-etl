@@ -20,16 +20,21 @@ class BatchDTO:
 
     def to_domain(self) -> Batch:
         results = frozenset(job.to_domain() for job in self.job_results)
-        if self.execution_error_occurred:
-            execution_success_or_failure = value_objects.Result.failure(
-                self.execution_error_message or "No error message was provided."
-            )
+        if self.running:
+            execution_millis = None
+            execution_success_or_failure = None
         else:
-            execution_success_or_failure = value_objects.Result.success()
+            execution_millis = value_objects.ExecutionMillis(self.execution_millis)
+            if self.execution_error_occurred:
+                execution_success_or_failure = value_objects.Result.failure(
+                    self.execution_error_message or "No error message was provided."
+                )
+            else:
+                execution_success_or_failure = value_objects.Result.success()
 
         return Batch(
             id=value_objects.UniqueId(self.id),
-            execution_millis=value_objects.ExecutionMillis(self.execution_millis),
+            execution_millis=execution_millis,
             job_results=results,
             execution_success_or_failure=execution_success_or_failure,
             running=value_objects.Flag(self.running),

@@ -11,7 +11,7 @@ from services import job_logging_service, unit_of_work  # type: ignore
 class JobSpec(abc.ABC):
     @property
     @abc.abstractmethod
-    def dependencies(self) -> typing.List[JobSpec]:
+    def dependencies(self) -> typing.List[value_objects.JobName]:
         raise NotImplementedError
 
     @property

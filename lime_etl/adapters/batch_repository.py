@@ -23,13 +23,17 @@ class BatchRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def get_batch_by_id(self, batch_id: value_objects.UniqueId) -> Optional[batch.Batch]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def get_latest(self) -> Optional[batch.Batch]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_latest_test_results_for_job(
+    def get_latest_results_for_job(
         self, job_name: value_objects.JobName
-    ) -> List[job_test_result.JobTestResult]:
+    ) -> List[job_result.JobResult]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -77,6 +81,17 @@ class SqlAlchemyBatchRepository(BatchRepository):
             self._session.delete(b)
         return len(batches)
 
+    def get_batch_by_id(self, batch_id: value_objects.UniqueId) -> Optional[batch.Batch]:
+        result: Optional[batch.BatchDTO] = (
+            self._session.query(batch.BatchDTO)
+            .filter(batch.BatchDTO.id == batch_id.value)
+            .first()
+        )
+        if result is None:
+            return None
+        else:
+            return result.to_domain()
+
     def get_latest(self) -> Optional[batch.Batch]:
         result: Optional[batch.BatchDTO] = (
             self._session.query(batch.BatchDTO)
@@ -88,19 +103,19 @@ class SqlAlchemyBatchRepository(BatchRepository):
         else:
             return result.to_domain()
 
-    def get_latest_test_results_for_job(
+    def get_latest_results_for_job(
         self, job_name: value_objects.JobName
-    ) -> List[job_test_result.JobTestResult]:
-        jr: Optional[job_result.JobResultDTO] = (
+    ) -> Optional[job_result.JobResult]:
+        dto = (
             self._session.query(job_result.JobResultDTO)
             .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))
             .order_by(desc(job_result.JobResultDTO.ts))
             .first()
         )
-        if jr is None:
-            return []
+        if dto is None:
+            return None
         else:
-            return [tr.to_domain() for tr in jr.test_results]
+            return dto.to_domain()
 
     def get_last_successful_ts_for_job(
         self, job_name: value_objects.JobName

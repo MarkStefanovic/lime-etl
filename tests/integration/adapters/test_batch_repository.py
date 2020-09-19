@@ -227,6 +227,62 @@ def test_sqlalchemy_table_repository_delete_old_entries(session: Session) -> Non
     assert actual_table_update_rows == expected_table_update_rows
 
 
+def test_get_batch_by_id(session: Session) -> None:
+    batch_id_1 = "b1396d94bd55a455baf80a26209349d6"
+    batch_id_2 = "b2396d94bd55a455baf80a26209349d6"
+    batch_id_3 = "b3396d94bd55a455baf80a26209349d6"
+    job_id_1 = "j1396d94bd55a455baf80a26209349d6"
+    job_id_2 = "j2396d94bd55a455baf80a26209349d6"
+    job_id_3 = "j3396d94bd55a455baf80a26209349d6"
+    session.execute(
+        f"""
+            INSERT INTO batches 
+                (id, execution_millis, execution_error_occurred, execution_error_message, running, ts)
+            VALUES 
+                ({batch_id_1!r}, 10, 0, NULL, 0, '2010-01-01 01:01:01.000000'),
+                ({batch_id_2!r}, 10, 0, NULL, 0, '2010-01-01 02:01:01.000000'),
+                ({batch_id_3!r}, 10, 0, NULL, 0, '2010-01-01 04:01:01.000000');
+        """
+    )
+    session.execute(
+        f"""
+        INSERT INTO jobs 
+            (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, ts)
+        VALUES 
+            ({job_id_1!r}, {batch_id_1!r}, 'test_table', 100, 0, NULL, '2010-01-01 01:01:01.000000'),
+            ({job_id_2!r}, {batch_id_3!r}, 'test_table', 100, 0, NULL, '2020-01-04 01:01:01.000000'),
+            ({job_id_3!r}, {batch_id_2!r}, 'test_table', 100, 0, NULL, '2020-01-01 01:01:05.000000');
+    """
+    )
+    session.commit()
+    ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
+    repo = batch_repository.SqlAlchemyBatchRepository(
+        session=session, ts_adapter=ts_adapter
+    )
+    result = repo.get_batch_by_id(value_objects.UniqueId(batch_id_2))
+    expected = batch.Batch(
+        id=value_objects.UniqueId(batch_id_2),
+        execution_millis=value_objects.ExecutionMillis(10),
+        job_results=frozenset(
+            {
+                job_result.JobResult(
+                    id=value_objects.UniqueId("j3396d94bd55a455baf80a26209349d6"),
+                    batch_id=value_objects.UniqueId("b2396d94bd55a455baf80a26209349d6"),
+                    job_name=value_objects.JobName("test_table"),
+                    test_results=frozenset(),
+                    execution_success_or_failure=value_objects.Result.success(),
+                    execution_millis=value_objects.ExecutionMillis(100),
+                    ts=value_objects.Timestamp(datetime.datetime(2020, 1, 1, 1, 1, 5)),
+                )
+            }
+        ),
+        execution_success_or_failure=value_objects.Result.success(),
+        running=value_objects.Flag(False),
+        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 2, 1, 1)),
+    )
+    assert result == expected
+
+
 def test_get_latest(session: Session) -> None:
     batch_id_1 = "b1396d94bd55a455baf80a26209349d6"
     batch_id_2 = "b2396d94bd55a455baf80a26209349d6"
@@ -283,7 +339,7 @@ def test_get_latest(session: Session) -> None:
     assert result == expected
 
 
-def test_get_latest_test_results_for_job(session: Session) -> None:
+def test_get_latest_results_for_job(session: Session) -> None:
     session.execute(
         f"""
         INSERT INTO batches 
@@ -320,21 +376,25 @@ def test_get_latest_test_results_for_job(session: Session) -> None:
     repo = batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
-    actual = repo.get_latest_test_results_for_job(value_objects.JobName("test_job"))
-    expected = [
-        job_test_result.JobTestResult(
-            id=value_objects.UniqueId("i1396d94bd55a455baf80a26209349d6"),
-            job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
-            test_name=value_objects.TestName("dummy_test_1"),
-            test_success_or_failure=value_objects.Result.success(),
-            ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
-        ),
-        job_test_result.JobTestResult(
-            id=value_objects.UniqueId("i2396d94bd55a455baf80a26209349d6"),
-            job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
-            test_name=value_objects.TestName("dummy_test_2"),
-            test_success_or_failure=value_objects.Result.success(),
-            ts=value_objects.Timestamp(datetime.datetime(2020, 1, 1, 4, 1, 1)),
-        ),
-    ]
+    actual = repo.get_latest_results_for_job(
+        value_objects.JobName("test_job")
+    ).test_results
+    expected = frozenset(
+        {
+            job_test_result.JobTestResult(
+                id=value_objects.UniqueId("i1396d94bd55a455baf80a26209349d6"),
+                job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
+                test_name=value_objects.TestName("dummy_test_1"),
+                test_success_or_failure=value_objects.Result(value_objects.Success()),
+                ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
+            ),
+            job_test_result.JobTestResult(
+                id=value_objects.UniqueId("i2396d94bd55a455baf80a26209349d6"),
+                job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
+                test_name=value_objects.TestName("dummy_test_2"),
+                test_success_or_failure=value_objects.Result(value_objects.Success()),
+                ts=value_objects.Timestamp(datetime.datetime(2020, 1, 1, 4, 1, 1)),
+            ),
+        }
+    )
     assert actual == expected

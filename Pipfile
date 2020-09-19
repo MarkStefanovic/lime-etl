@@ -4,13 +4,11 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-mypy = "*"
 coverage = "*"
 pytest = "*"
 
 [packages]
 SQLAlchemy = "==1.3.17"
-python-dotenv = "*"
 
 [requires]
 python_version = "3.8"

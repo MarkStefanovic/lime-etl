@@ -14,7 +14,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         self._days_to_keep = days_to_keep
 
     @property
-    def dependencies(self) -> List[job_spec.JobSpec]:
+    def dependencies(self) -> List[value_objects.JobName]:
         return []
 
     @property
@@ -49,7 +49,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         logger.log_info(
             message=value_objects.LogMessage(
                 f"Deleted batch log entries older than {self._days_to_keep.value} days old."
-            ),
+            )
         )
 
         with uow:
@@ -59,7 +59,17 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         logger.log_info(
             message=value_objects.LogMessage(
                 f"Deleted job log entries older than {self._days_to_keep.value} days old."
-            ),
+            )
+        )
+
+        with uow:
+            uow.batches.delete_old_entries(days_to_keep=self._days_to_keep)
+            uow.commit()
+
+        logger.log_info(
+            message=value_objects.LogMessage(
+                f"Deleted batch results older than {self._days_to_keep.value} days old."
+            )
         )
 
         return value_objects.Result.success()

@@ -10,7 +10,12 @@ from adapters import batch_repository, timestamp_adapter  # type: ignore
 from adapters import batch_log_repository, job_log_repository
 from adapters.orm import metadata, start_mappers  # type: ignore
 from domain import (  # type: ignore
-    batch, batch_log_entry, job_log_entry, job_result, job_test_result, value_objects,
+    batch,
+    batch_log_entry,
+    job_log_entry,
+    job_result,
+    job_test_result,
+    value_objects,
 )
 from services import unit_of_work  # type: ignore
 
@@ -110,7 +115,12 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         self.entries = [e for e in self.entries if e.ts.value > cutoff]
         return len(self.entries)
 
-    def get_last_successful_ts_for_job(self, job_name: value_objects.JobName) -> Optional[value_objects.Timestamp]:
+    def get_batch_by_id(self, batch_id: value_objects.UniqueId) -> Optional[batch.Batch]:
+        return None
+
+    def get_last_successful_ts_for_job(
+        self, job_name: value_objects.JobName
+    ) -> Optional[value_objects.Timestamp]:
         return self.get_latest().ts  # type: ignore
 
     def get_latest(self) -> Optional[batch.Batch]:
@@ -119,13 +129,13 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         )[0]
         return latest
 
-    def get_latest_test_results_for_job(
+    def get_latest_results_for_job(
         self, job_name: value_objects.JobName
-    ) -> List[job_test_result.JobTestResult]:
+    ) -> List[job_result.JobResult]:
         return []
 
     def update(self, batch_to_update: batch.Batch) -> batch.Batch:
-        pass
+        return batch_to_update
 
 
 class DummyUnitOfWork(unit_of_work.UnitOfWork):

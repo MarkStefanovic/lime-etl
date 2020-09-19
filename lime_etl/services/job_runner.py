@@ -31,20 +31,51 @@ def default_job_runner(
 ) -> job_result.JobResult:
     try:
         logger.log_info(value_objects.LogMessage(f"Starting [{job.job_name.value}]..."))
-        result = _run_with_retry(
-            batch_id=batch_id,
-            job_id=job_id,
-            job=job,
-            logger=logger,
-            retries_so_far=0,
-            max_retries=job.max_retries.value,
-            ts_adapter=ts_adapter,
-            uow=uow,
-        )
-        logger.log_info(
-            value_objects.LogMessage(f"Finished running [{job.job_name.value}].")
-        )
-        return result
+        with uow:
+            current_batch = uow.batches.get_batch_by_id(batch_id)
+
+        if current_batch is None:
+            raise Exception(
+                "The current batch has not been saved to the database, so the results of dependent "
+                "jobs cannot be checked."
+            )
+        else:
+            dep_exceptions = {
+                jr.job_name
+                for jr in current_batch.job_results
+                if jr.job_name in job.dependencies
+                and jr.execution_success_or_failure.is_failure
+            }
+            dep_test_failures = {
+                jr.job_name
+                for jr in current_batch.job_results
+                if jr.job_name in job.dependencies
+                and jr.is_broken
+            }
+            if dep_exceptions and dep_test_failures:
+                raise Exception(
+                     f"The following dependencies failed to execute: {', '.join(sorted(dep_exceptions))} "
+                     f"and the following jobs had test failures: {', '.join(sorted(dep_exceptions))}"
+                )
+            elif dep_exceptions:
+                raise Exception(
+                     f"The following dependencies failed to execute: {', '.join(sorted(dep_exceptions))}"
+                )
+            else:
+                result = _run_with_retry(
+                    batch_id=batch_id,
+                    job_id=job_id,
+                    job=job,
+                    logger=logger,
+                    retries_so_far=0,
+                    max_retries=job.max_retries.value,
+                    ts_adapter=ts_adapter,
+                    uow=uow,
+                )
+                logger.log_info(
+                    value_objects.LogMessage(f"Finished running [{job.job_name.value}].")
+                )
+                return result
     except Exception as e:
         logger.log_error(
             value_objects.LogMessage(
@@ -147,7 +178,7 @@ def _run_job_with_tests(
         test_results: typing.Collection[job_test_result.SimpleJobTestResult] = []
     else:
         logger.log_info(
-            value_objects.LogMessage(f"Running the tests for [{job.job_name}]")
+            value_objects.LogMessage(f"Running the tests for [{job.job_name}]...")
         )
         if isinstance(job, job_spec.AdminJobSpec):
             test_results = job.test(logger=logger, uow=uow)
