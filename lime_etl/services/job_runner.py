@@ -161,32 +161,32 @@ def _run_job_with_tests(
         result = job.run(logger=logger)
     else:
         raise ValueError(
-            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job}."
+            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."
         )
 
     if result is None:
         result = value_objects.Result.success()
     elif isinstance(result, value_objects.Result):
         logger.log_info(
-            value_objects.LogMessage(f"[{job.job_name}] finished successfully.")
+            value_objects.LogMessage(f"[{job.job_name.value}] finished successfully.")
         )
     else:
         raise ValueError(
-            f"A job should return an instance of either Success or Failure, but [{job.job_name}] "
+            f"A job should return an instance of either Success or Failure, but [{job.job_name.value}] "
             f"returned {result!r}."
         )
 
     if result.is_failure:
         logger.log_info(
             value_objects.LogMessage(
-                f"[{job.job_name}] failed, so there is no point in running the tests.  "
+                f"[{job.job_name.value}] failed, so there is no point in running the tests.  "
                 f"They have been skipped."
             )
         )
         test_results: typing.Collection[job_test_result.SimpleJobTestResult] = []
     else:
         logger.log_info(
-            value_objects.LogMessage(f"Running the tests for [{job.job_name}]...")
+            value_objects.LogMessage(f"Running the tests for [{job.job_name.value}]...")
         )
         if isinstance(job, job_spec.AdminJobSpec):
             test_results = job.test(logger=logger, uow=uow)
