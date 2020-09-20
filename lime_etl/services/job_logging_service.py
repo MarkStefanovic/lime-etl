@@ -49,6 +49,7 @@ class DefaultJobLoggingService(JobLoggingService):
                 message=message,
                 ts=ts,
             )
+            print(log_entry)
             uow.job_log.add(log_entry=log_entry)
             uow.commit()
             return None

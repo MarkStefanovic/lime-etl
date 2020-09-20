@@ -3,6 +3,7 @@ from lime_etl.adapters.email_adapter import DefaultEmailAdapter, EmailAdapter  #
 from lime_etl.domain.value_objects import *  # noqa
 from lime_etl.domain.job_spec import JobSpec  # noqa
 from lime_etl.domain.batch_delta import BatchDelta  # noqa
+from lime_etl.domain.job_spec import AdminJobSpec, ETLJobSpec  # noqa
 from lime_etl.domain.job_test_result import JobTestResult  # noqa
 from lime_etl.services.unit_of_work import DefaultUnitOfWork, UnitOfWork  # noqa
 from lime_etl.services.job_logging_service import DefaultJobLoggingService, JobLoggingService  # noqa
