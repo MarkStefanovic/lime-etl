@@ -32,7 +32,7 @@ def run(
     if type(engine_or_uri) is sa.engine.Engine:
         engine = engine_or_uri
     else:
-        engine = sa.create_engine(engine_or_uri, echo=True)
+        engine = sa.create_engine(engine_or_uri)
     orm.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     uow = unit_of_work.DefaultUnitOfWork(session_factory=session_factory)
