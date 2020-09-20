@@ -4,7 +4,7 @@ import datetime
 from dataclasses import dataclass
 from typing import FrozenSet, List, Optional
 
-from domain import job_test_result, value_objects  # type: ignore
+from lime_etl.domain import job_test_result, value_objects
 
 
 @dataclass(unsafe_hash=True)

@@ -2,8 +2,8 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from adapters import batch_repository  # type: ignore
-from domain import batch, job_result, job_test_result, value_objects  # type: ignore
+from lime_etl.adapters import batch_repository
+from lime_etl.domain import batch, job_result, job_test_result, value_objects
 from tests import conftest
 
 

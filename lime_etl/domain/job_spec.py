@@ -4,8 +4,8 @@ import abc
 
 import typing
 
-from domain import job_test_result, value_objects  # type: ignore
-from services import job_logging_service, unit_of_work  # type: ignore
+from lime_etl.domain import job_test_result, value_objects
+from lime_etl.services import job_logging_service, unit_of_work
 
 
 class JobSpec(abc.ABC):

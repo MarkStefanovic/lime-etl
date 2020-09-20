@@ -5,7 +5,7 @@ import dataclasses
 
 import typing
 
-from domain import job_result, value_objects  # type: ignore
+from lime_etl.domain import job_result, value_objects
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -24,7 +24,7 @@ class BatchDTO:
             execution_millis = None
             execution_success_or_failure = None
         else:
-            execution_millis = value_objects.ExecutionMillis(self.execution_millis)
+            execution_millis = value_objects.ExecutionMillis(self.execution_millis or 0)
             if self.execution_error_occurred:
                 execution_success_or_failure = value_objects.Result.failure(
                     self.execution_error_message or "No error message was provided."

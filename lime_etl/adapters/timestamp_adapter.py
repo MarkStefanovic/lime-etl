@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import datetime
 
-from domain import value_objects  # type: ignore
+from lime_etl.domain import value_objects
 
 
 class TimestampAdapter(abc.ABC):

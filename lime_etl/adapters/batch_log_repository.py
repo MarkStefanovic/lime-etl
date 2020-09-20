@@ -4,8 +4,8 @@ import datetime
 import sqlalchemy as sa
 import sqlalchemy.orm as sao
 
-from adapters import timestamp_adapter  # type: ignore
-from domain import batch_log_entry, value_objects  # type: ignore
+from lime_etl.adapters import timestamp_adapter
+from lime_etl.domain import batch_log_entry, value_objects
 
 
 class BatchLogRepository(abc.ABC):

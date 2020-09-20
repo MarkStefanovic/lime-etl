@@ -3,8 +3,8 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from adapters import timestamp_adapter  # type: ignore
-from domain import job_log_entry, value_objects  # type: ignore
+from lime_etl.adapters import timestamp_adapter
+from lime_etl.domain import job_log_entry, value_objects
 
 
 class JobLogRepository(abc.ABC):

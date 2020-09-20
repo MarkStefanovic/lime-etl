@@ -1,8 +1,8 @@
 import pytest
 
-from adapters import job_log_repository  # type: ignore
-from domain import value_objects  # type: ignore
-from services import job_logging_service  # type: ignore
+from lime_etl.adapters import job_log_repository
+from lime_etl.domain import value_objects
+from lime_etl.services import job_logging_service
 from tests import conftest
 
 

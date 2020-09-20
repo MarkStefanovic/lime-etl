@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import typing
 
-from domain import batch, value_objects  # type: ignore
+from lime_etl.domain import batch, value_objects
 
 
 @dataclass(frozen=True)

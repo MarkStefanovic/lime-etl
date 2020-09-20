@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import mapper, relationship
 from sqlalchemy.orm.base import _is_mapped_class
 
-from domain import (  # type: ignore
+from lime_etl.domain import (
     batch,
     job_result,
     job_log_entry,

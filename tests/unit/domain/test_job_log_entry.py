@@ -1,4 +1,4 @@
-from domain import job_log_entry, value_objects  # type: ignore
+from lime_etl.domain import job_log_entry, value_objects
 
 
 def test_job_log_entry__str__() -> None:

@@ -6,10 +6,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, clear_mappers, sessionmaker
 
-from adapters import batch_repository, timestamp_adapter  # type: ignore
-from adapters import batch_log_repository, job_log_repository
-from adapters.orm import metadata, start_mappers  # type: ignore
-from domain import (  # type: ignore
+from lime_etl.adapters import batch_repository, timestamp_adapter
+from lime_etl.adapters import batch_log_repository, job_log_repository
+from lime_etl.adapters.orm import metadata, start_mappers
+from lime_etl.domain import (
     batch,
     batch_log_entry,
     job_log_entry,

@@ -1,6 +1,6 @@
 import datetime
 
-from domain import job_test_result, value_objects  # type: ignore
+from lime_etl.domain import job_test_result, value_objects
 
 
 def test_job_test_result_convertible_to_dto() -> None:

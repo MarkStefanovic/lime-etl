@@ -3,9 +3,9 @@ import traceback
 
 import typing
 
-from adapters import timestamp_adapter  # type: ignore
-from domain import job_result, job_spec, job_test_result, value_objects  # type: ignore
-from services import job_logging_service, unit_of_work  # type: ignore
+from lime_etl.adapters import timestamp_adapter
+from lime_etl.domain import job_result, job_spec, job_test_result, value_objects
+from lime_etl.services import job_logging_service, unit_of_work
 
 
 class JobRunner(typing.Protocol):
@@ -49,17 +49,19 @@ def default_job_runner(
             dep_test_failures = {
                 jr.job_name
                 for jr in current_batch.job_results
-                if jr.job_name in job.dependencies
-                and jr.is_broken
+                if jr.job_name in job.dependencies and jr.is_broken
             }
             if dep_exceptions and dep_test_failures:
+                exceptions = ", ".join(sorted(dep_exceptions))  # type: ignore
+                test_failures = ", ".join(sorted(dep_test_failures))  # type: ignore
                 raise Exception(
-                     f"The following dependencies failed to execute: {', '.join(sorted(dep_exceptions))} "
-                     f"and the following jobs had test failures: {', '.join(sorted(dep_exceptions))}"
+                    f"The following dependencies failed to execute: {exceptions} "
+                    f"and the following jobs had test failures: {test_failures}"
                 )
             elif dep_exceptions:
+                exceptions = ", ".join(sorted(dep_exceptions))  # type: ignore
                 raise Exception(
-                     f"The following dependencies failed to execute: {', '.join(sorted(dep_exceptions))}"
+                    f"The following dependencies failed to execute: {exceptions}"
                 )
             else:
                 result = _run_with_retry(
@@ -73,7 +75,9 @@ def default_job_runner(
                     uow=uow,
                 )
                 logger.log_info(
-                    value_objects.LogMessage(f"Finished running [{job.job_name.value}].")
+                    value_objects.LogMessage(
+                        f"Finished running [{job.job_name.value}]."
+                    )
                 )
                 return result
     except Exception as e:
@@ -156,12 +160,16 @@ def _run_job_with_tests(
     elif isinstance(job, job_spec.ETLJobSpec):
         result = job.run(logger=logger)
     else:
-        raise ValueError(f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job}.")
+        raise ValueError(
+            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job}."
+        )
 
     if result is None:
         result = value_objects.Result.success()
     elif isinstance(result, value_objects.Result):
-        logger.log_info(value_objects.LogMessage(f"[{job.job_name}] finished successfully."))
+        logger.log_info(
+            value_objects.LogMessage(f"[{job.job_name}] finished successfully.")
+        )
     else:
         raise ValueError(
             f"A job should return an instance of either Success or Failure, but [{job.job_name}] "
@@ -183,7 +191,7 @@ def _run_job_with_tests(
         if isinstance(job, job_spec.AdminJobSpec):
             test_results = job.test(logger=logger, uow=uow)
         else:
-            test_results = job.test(logger=logger)
+            test_results = job.test(logger=logger)  # type: ignore
 
     if test_results:
         full_test_results = frozenset(

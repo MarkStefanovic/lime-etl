@@ -5,8 +5,8 @@ from typing import List, Optional
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from adapters import timestamp_adapter  # type: ignore
-from domain import batch, job_result, job_test_result, value_objects  # type: ignore
+from lime_etl.adapters import timestamp_adapter
+from lime_etl.domain import batch, job_result, value_objects
 
 
 class BatchRepository(abc.ABC):
@@ -108,7 +108,7 @@ class SqlAlchemyBatchRepository(BatchRepository):
     ) -> Optional[job_result.JobResult]:
         dto = (
             self._session.query(job_result.JobResultDTO)
-            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))
+            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
             .order_by(desc(job_result.JobResultDTO.ts))
             .first()
         )
@@ -122,8 +122,8 @@ class SqlAlchemyBatchRepository(BatchRepository):
     ) -> Optional[value_objects.Timestamp]:
         jr: Optional[job_result.JobResultDTO] = (
             self._session.query(job_result.JobResultDTO)
-            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))
-            .filter(job_result.JobResultDTO.execution_error_occurred.is_(False))
+            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
+            .filter(job_result.JobResultDTO.execution_error_occurred.is_(False))  # type: ignore
             .order_by(desc(job_result.JobResultDTO.ts))
             .first()
         )

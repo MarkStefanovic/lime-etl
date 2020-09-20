@@ -6,10 +6,10 @@ import typing
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
-from adapters import email_adapter, orm, timestamp_adapter  # type: ignore
-from domain import batch_delta, job_spec, value_objects  # type: ignore
-from services import batch_runner, unit_of_work  # type: ignore
-from services.admin import delete_old_logs  # type: ignore
+from lime_etl.adapters import email_adapter, orm, timestamp_adapter
+from lime_etl.domain import batch_delta, job_spec, value_objects
+from lime_etl.services import batch_runner, unit_of_work
+from lime_etl.services.admin import delete_old_logs
 
 DEFAULT_ADMIN_JOBS = [
     delete_old_logs.DeleteOldLogs(days_to_keep=value_objects.DaysToKeep(3)),

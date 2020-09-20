@@ -2,7 +2,7 @@ import typing
 from email.message import EmailMessage
 from smtplib import SMTP
 
-from domain import batch_delta, value_objects  # type: ignore
+from lime_etl.domain import batch_delta, value_objects
 
 
 class EmailAdapter(typing.Protocol):
@@ -28,7 +28,7 @@ class DefaultEmailAdapter(EmailAdapter):
     def send(self, result: batch_delta.BatchDelta) -> None:
         if result.current_results.broken_jobs:
             if result.newly_broken_jobs:
-                subject = value_objects.EmailSubject("ETL STILL BROKEN")
+                subject: typing.Optional[value_objects.EmailSubject] = value_objects.EmailSubject("ETL STILL BROKEN")
             else:
                 subject = value_objects.EmailSubject("ETL BROKEN")
         else:

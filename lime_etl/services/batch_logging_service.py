@@ -1,8 +1,8 @@
 import abc
 
 
-from domain import batch_log_entry, value_objects  # type: ignore
-from services import unit_of_work  # type: ignore
+from lime_etl.domain import batch_log_entry, value_objects
+from lime_etl.services import unit_of_work
 
 
 class BatchLoggingService(abc.ABC):

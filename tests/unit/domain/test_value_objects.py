@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from domain import value_objects  # type: ignore
+from lime_etl.domain import value_objects
 
 
 @pytest.mark.parametrize(

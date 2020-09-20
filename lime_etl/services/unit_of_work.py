@@ -5,9 +5,13 @@ from typing import Any
 
 from sqlalchemy.orm import sessionmaker
 
-import adapters.job_log_repository  # type: ignore
-from adapters import batch_repository, timestamp_adapter
-from adapters import batch_log_repository, email_adapter, job_log_repository
+from lime_etl.adapters import (
+    batch_log_repository,
+    batch_repository,
+    email_adapter,
+    job_log_repository,
+    timestamp_adapter,
+)
 
 
 class UnitOfWork(abc.ABC):
@@ -47,7 +51,7 @@ class DefaultUnitOfWork(UnitOfWork):
             session=self._session,
             ts_adapter=self.ts_adapter,
         )
-        self.job_log = adapters.job_log_repository.SqlAlchemyJobLogRepository(
+        self.job_log = job_log_repository.SqlAlchemyJobLogRepository(
             session=self._session,
             ts_adapter=self.ts_adapter,
         )

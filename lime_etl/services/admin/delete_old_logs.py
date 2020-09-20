@@ -2,8 +2,8 @@ import datetime
 import typing
 from typing import List
 
-from domain import job_spec, job_test_result, value_objects  # type: ignore
-from services import job_logging_service, unit_of_work  # type: ignore
+from lime_etl.domain import job_spec, job_test_result, value_objects
+from lime_etl.services import job_logging_service, unit_of_work
 
 
 class DeleteOldLogs(job_spec.AdminJobSpec):
@@ -39,7 +39,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
 
     def run(
         self,
-        uow: unit_of_work,
+        uow: unit_of_work.UnitOfWork,
         logger: job_logging_service.JobLoggingService,
     ) -> value_objects.Result:
         with uow:
@@ -76,7 +76,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
 
     def test(
         self,
-        uow: unit_of_work,
+        uow: unit_of_work.UnitOfWork,
         logger: job_logging_service.JobLoggingService,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         with uow:
