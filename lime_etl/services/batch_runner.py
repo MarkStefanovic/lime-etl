@@ -18,7 +18,7 @@ class BatchRunner(Protocol):
         self,
         uow: unit_of_work.UnitOfWork,
         batch_id: value_objects.UniqueId,
-        jobs: List[job_spec.JobSpec],
+        jobs: typing.Collection[job_spec.JobSpec],
         batch_logger: batch_logging_service.BatchLoggingService,
         ts_adapter: timestamp_adapter.TimestampAdapter,
     ) -> batch.Batch:
@@ -27,13 +27,17 @@ class BatchRunner(Protocol):
 
 def run(
     uow: unit_of_work.UnitOfWork,
-    jobs: typing.Iterable[job_spec.JobSpec],
+    jobs: typing.Collection[job_spec.JobSpec],
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> batch_delta.BatchDelta:
     batch_id = value_objects.UniqueId.generate()
     batch_logger = batch_logging_service.DefaultBatchLoggingService(
         uow=uow, batch_id=batch_id
     )
+    dep_results = check_dependencies(jobs)
+    if dep_results.is_failure:
+        batch_logger.log_error(value_objects.LogMessage(dep_results.failure_message))
+        raise Exception(dep_results.failure_message)
 
     try:
         with uow:
@@ -60,7 +64,9 @@ def run(
             ts_adapter=ts_adapter,
         )
         uow.batches.update(result)
-        batch_logger.log_info(value_objects.LogMessage(f"Batch [{batch_id.value}] finished."))
+        batch_logger.log_info(
+            value_objects.LogMessage(f"Batch [{batch_id.value}] finished.")
+        )
         return batch_delta.BatchDelta(
             current_results=result,
             previous_results=previous_results,
@@ -68,6 +74,43 @@ def run(
     except Exception as e:
         batch_logger.log_error(value_objects.LogMessage(str(e)))
         raise
+
+
+def check_dependencies(
+    jobs: typing.Collection[job_spec.JobSpec], /
+) -> value_objects.Result:
+    dep_issues: typing.List[str] = []
+
+    job_names: typing.Set[value_objects.JobName] = {job.job_name for job in jobs}
+    missing_deps_by_table: typing.Dict[str, typing.List[value_objects.JobName]] = {
+        job.job_name.value: sorted(
+            dep for dep in job.dependencies if dep not in job_names
+        )
+        for job in jobs
+        if any(dep not in job_names for dep in job.dependencies)
+    }
+    dep_issues += [
+        f"{job_name} has the following unresolved dependencies: {', '.join(dep.value for dep in deps)}."
+        for job_name, deps in missing_deps_by_table.items()
+    ]
+
+    missing_deps = {
+        dep for dep_grp in missing_deps_by_table.values() for dep in dep_grp
+    }
+    job_names_seen_so_far = []
+    for job in jobs:
+        job_names_seen_so_far.append(job.job_name)
+        for dep in job.dependencies:
+            if dep not in job_names_seen_so_far and dep not in missing_deps:
+                dep_issues.append(
+                    f"{job.job_name.value} depends on job [{dep.value}] that comes after it in the "
+                    f"list of jobs."
+                )
+
+    if dep_issues:
+        return value_objects.Result.failure("\n".join(dep_issues))
+    else:
+        return value_objects.Result.success()
 
 
 def _run_batch(

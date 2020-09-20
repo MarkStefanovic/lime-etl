@@ -37,7 +37,7 @@ def run(
     session_factory = sessionmaker(bind=engine)
     uow = unit_of_work.DefaultUnitOfWork(session_factory=session_factory)
     result: batch_delta.BatchDelta = batch_runner.run(
-        uow=uow, jobs=itertools.chain(admin_jobs, etl_jobs), ts_adapter=ts_adapter
+        uow=uow, jobs=list(itertools.chain(admin_jobs, etl_jobs)), ts_adapter=ts_adapter
     )
     if email_adapter:
         email_adapter.send(result=result)

@@ -73,17 +73,7 @@ def test_run_with_sqlite_using_default_parameters(
         etl_jobs=etl_jobs,
         admin_jobs=runner.DEFAULT_ADMIN_JOBS,
     )
-    assert actual.current_results.job_names == {
-        value_objects.JobName("delete_old_logs"),
-        value_objects.JobName("hello_world_job"),
-        value_objects.JobName("hello_world_job2"),
-    }
-    assert actual.current_results.broken_jobs == set(), [
-        j.execution_success_or_failure.value for j in actual.current_results.job_results
-    ]
-    assert actual.current_results.running.value is False
-    assert actual.current_results.execution_millis.value > 0
-    assert actual.current_results.ts is not None
+
     job_execution_results = [
         jr.execution_success_or_failure for jr in actual.current_results.job_results
     ]
@@ -91,3 +81,19 @@ def test_run_with_sqlite_using_default_parameters(
         jr.execution_success_or_failure == value_objects.Result.success()
         for jr in actual.current_results.job_results
     ), f"Expected all Success values, but got {job_execution_results}"
+
+    assert actual.current_results.job_names == {
+        value_objects.JobName("delete_old_logs"),
+        value_objects.JobName("hello_world_job"),
+        value_objects.JobName("hello_world_job2"),
+    }
+
+    assert actual.current_results.broken_jobs == set(), [
+        j.execution_success_or_failure.value for j in actual.current_results.job_results
+    ]
+
+    assert actual.current_results.running.value is False
+
+    assert actual.current_results.execution_millis.value > 0
+
+    assert actual.current_results.ts is not None
