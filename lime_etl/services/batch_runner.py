@@ -93,7 +93,7 @@ def check_dependencies(
 ) -> typing.Set[job_dependency_errors.JobDependencyErrors]:
     job_names = {job.job_name for job in jobs}
     unresolved_dependencies_by_table = {
-        job.job_name.value: set(dep for dep in job.dependencies if dep not in job_names)
+        job.job_name: set(dep for dep in job.dependencies if dep not in job_names)
         for job in jobs
         if any(dep not in job_names for dep in job.dependencies)
     }
@@ -117,12 +117,12 @@ def check_dependencies(
     return {
         job_dependency_errors.JobDependencyErrors(
             job_name=job_name,
-            missing_dependencies=unresolved_dependencies_by_table[job_name],
-            jobs_out_of_order=jobs_out_of_order_by_table[job_name],
+            missing_dependencies=frozenset(unresolved_dependencies_by_table.get(job_name, set())),
+            jobs_out_of_order=frozenset(jobs_out_of_order_by_table.get(job_name, set())),
         )
         for job_name in set(
             itertools.chain(
-                unresolved_dependencies,
+                unresolved_dependencies_by_table.keys(),
                 jobs_out_of_order_by_table.keys(),
             )
         )
