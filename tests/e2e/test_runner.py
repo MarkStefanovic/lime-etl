@@ -1,16 +1,18 @@
 import tempfile
 from typing import Iterable, List
 
+import pytest
 import sqlalchemy as sa
 
-from lime_etl.domain import job_spec, job_test_result, value_objects
+from lime_etl.domain import exceptions, job_spec, job_test_result, value_objects
 from lime_etl import runner
 from lime_etl.services import job_logging_service
 
 
 class HelloWorldJob(job_spec.ETLJobSpec):
-    def __init__(self, job_name: str):
+    def __init__(self, job_name: str, dependencies: List[value_objects.JobName]):
         self._job_name = job_name
+        self._dependencies = dependencies
         self._file_created: bool = False
 
     def run(self, logger: job_logging_service.JobLoggingService) -> None:
@@ -20,7 +22,7 @@ class HelloWorldJob(job_spec.ETLJobSpec):
 
     @property
     def dependencies(self) -> List[value_objects.JobName]:
-        return [value_objects.JobName("delete_old_logs")]
+        return self._dependencies
 
     @property
     def flex_pct(self) -> value_objects.FlexPercent:
@@ -65,8 +67,8 @@ def test_run_with_sqlite_using_default_parameters(
     in_memory_db: sa.engine.Engine,
 ) -> None:
     etl_jobs = [
-        HelloWorldJob("hello_world_job"),
-        HelloWorldJob("hello_world_job2"),
+        HelloWorldJob("hello_world_job", dependencies=[value_objects.JobName("delete_old_logs")]),
+        HelloWorldJob("hello_world_job2", dependencies=[value_objects.JobName("delete_old_logs")]),
     ]
     actual = runner.run(
         engine_or_uri=in_memory_db,
@@ -97,3 +99,39 @@ def test_run_with_sqlite_using_default_parameters(
     assert actual.current_results.execution_millis.value > 0
 
     assert actual.current_results.ts is not None
+
+
+def test_run_with_unresolved_dependencies(
+    in_memory_db: sa.engine.Engine,
+) -> None:
+    etl_jobs = [
+        HelloWorldJob("hello_world_job", dependencies=[value_objects.JobName("delete_old_logs2")]),  # does not exist
+        HelloWorldJob("hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]),
+    ]
+
+    with pytest.raises(exceptions.DependencyErrors) as e:
+        runner.run(
+            engine_or_uri=in_memory_db,
+            etl_jobs=etl_jobs,
+            admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+        )
+
+    assert str(e.value) == "[hello_world_job] has the following unresolved dependencies: [delete_old_logs2]."
+
+
+def test_run_with_dependencies_out_of_order(
+    in_memory_db: sa.engine.Engine,
+) -> None:
+    etl_jobs = [
+        HelloWorldJob("hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]),  # relies on later job
+        HelloWorldJob("hello_world_job", dependencies=[]),
+    ]
+
+    with pytest.raises(exceptions.DependencyErrors) as e:
+        runner.run(
+            engine_or_uri=in_memory_db,
+            etl_jobs=etl_jobs,
+            admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+        )
+
+    assert str(e.value) == "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
