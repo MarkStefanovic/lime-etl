@@ -269,9 +269,9 @@ class SecondsBetweenRefreshes(ValueObject):
                 f"{self.__class__.__name__} value is required, but got None."
             )
         elif isinstance(value, int):
-            if value < 300:
+            if value < 0:
                 raise ValueError(
-                    f"If a {self.__class__.__name__} must be at least 300 seconds, but got {value!r}."
+                    f"If a {self.__class__.__name__} must be positive, but got {value!r}."
                 )
         else:
             raise TypeError(

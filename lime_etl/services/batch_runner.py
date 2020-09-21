@@ -1,10 +1,18 @@
+import itertools
 from typing import List, Protocol, runtime_checkable
 
 import typing
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import batch_delta
-from lime_etl.domain import batch, job_result, job_spec, value_objects
+from lime_etl.domain import (
+    batch_delta,
+    batch,
+    exceptions,
+    job_dependency_errors,
+    job_result,
+    job_spec,
+    value_objects,
+)
 from lime_etl.services import (
     batch_logging_service,
     job_runner,
@@ -35,9 +43,13 @@ def run(
         uow=uow, batch_id=batch_id
     )
     dep_results = check_dependencies(jobs)
-    if dep_results.is_failure:
-        batch_logger.log_error(value_objects.LogMessage(dep_results.failure_message))
-        raise Exception(dep_results.failure_message)
+    if dep_results:
+        e = exceptions.DependencyErrors(dep_results)
+
+        batch_logger.log_error(
+            value_objects.LogMessage("\n".join(str(e) for e in sorted(dep_results)))
+        )
+        raise exceptions.DependencyErrors(dep_results)
 
     try:
         with uow:
@@ -78,39 +90,43 @@ def run(
 
 def check_dependencies(
     jobs: typing.Collection[job_spec.JobSpec], /
-) -> value_objects.Result:
-    dep_issues: typing.List[str] = []
-
-    job_names: typing.Set[value_objects.JobName] = {job.job_name for job in jobs}
-    missing_deps_by_table: typing.Dict[str, typing.List[value_objects.JobName]] = {
-        job.job_name.value: sorted(
-            dep for dep in job.dependencies if dep not in job_names
-        )
+) -> typing.Set[job_dependency_errors.JobDependencyErrors]:
+    job_names = {job.job_name for job in jobs}
+    unresolved_dependencies_by_table = {
+        job.job_name.value: set(dep for dep in job.dependencies if dep not in job_names)
         for job in jobs
         if any(dep not in job_names for dep in job.dependencies)
     }
-    dep_issues += [
-        f"{job_name} has the following unresolved dependencies: {', '.join(dep.value for dep in deps)}."
-        for job_name, deps in missing_deps_by_table.items()
-    ]
-
-    missing_deps = {
-        dep for dep_grp in missing_deps_by_table.values() for dep in dep_grp
+    unresolved_dependencies = {
+        dep for dep_grp in unresolved_dependencies_by_table.values() for dep in dep_grp
     }
-    job_names_seen_so_far = []
+
+    job_names_seen_so_far: typing.List[value_objects.JobName] = []
+    jobs_out_of_order_by_table: typing.Dict[
+        value_objects.JobName, typing.Set[value_objects.JobName]
+    ] = dict()
     for job in jobs:
         job_names_seen_so_far.append(job.job_name)
+        job_deps_out_of_order = []
         for dep in job.dependencies:
-            if dep not in job_names_seen_so_far and dep not in missing_deps:
-                dep_issues.append(
-                    f"{job.job_name.value} depends on job [{dep.value}] that comes after it in the "
-                    f"list of jobs."
-                )
+            if dep not in job_names_seen_so_far and dep not in unresolved_dependencies:
+                job_deps_out_of_order.append(dep)
+        if job_deps_out_of_order:
+            jobs_out_of_order_by_table[job.job_name] = set(job_deps_out_of_order)
 
-    if dep_issues:
-        return value_objects.Result.failure("\n".join(dep_issues))
-    else:
-        return value_objects.Result.success()
+    return {
+        job_dependency_errors.JobDependencyErrors(
+            job_name=job_name,
+            missing_dependencies=unresolved_dependencies_by_table[job_name],
+            jobs_out_of_order=jobs_out_of_order_by_table[job_name],
+        )
+        for job_name in set(
+            itertools.chain(
+                unresolved_dependencies,
+                jobs_out_of_order_by_table.keys(),
+            )
+        )
+    }
 
 
 def _run_batch(

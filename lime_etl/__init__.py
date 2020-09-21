@@ -7,4 +7,5 @@ from lime_etl.domain.job_spec import AdminJobSpec, ETLJobSpec  # noqa
 from lime_etl.domain.job_test_result import JobTestResult  # noqa
 from lime_etl.services.unit_of_work import DefaultUnitOfWork, UnitOfWork  # noqa
 from lime_etl.services.job_logging_service import DefaultJobLoggingService, JobLoggingService  # noqa
+from lime_etl.services.admin.delete_old_logs import DeleteOldLogs  # noqa
 from lime_etl.runner import DEFAULT_ADMIN_JOBS, run  # noqa

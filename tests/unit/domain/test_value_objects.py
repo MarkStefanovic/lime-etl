@@ -117,7 +117,7 @@ def test_value_object_rejects_none_value(cls: type) -> None:
         (value_objects.MaxRetries, -1, "MaxRetries value must be positive"),
         (value_objects.Password, "", "Password value is required"),
         (value_objects.SchemaName, "", "If a SchemaName value is provided, then it must be at least 1 character long"),
-        (value_objects.SecondsBetweenRefreshes, 1, "must be at least 300 seconds"),
+        (value_objects.SecondsBetweenRefreshes, -1, "must be positive"),
         (value_objects.SingleChar, "", "SingleChar value is required"),
         (value_objects.SingleChar, "abc", "SingleChar must be 1 char"),
         (value_objects.SMTPPort, -1, "SMTPPort value must be positive"),
