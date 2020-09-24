@@ -56,6 +56,9 @@ class ValueObject:
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.value!r})"
 
+    def __str__(self) -> str:
+        return str(self.value)
+
 
 class Flag(ValueObject):
     def __init__(self, value: bool, /):

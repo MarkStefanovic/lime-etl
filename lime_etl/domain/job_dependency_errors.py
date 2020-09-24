@@ -34,4 +34,6 @@ class JobDependencyErrors:
         elif jobs_out_of_order_str:
             return f"[{self.job_name.value}]{jobs_out_of_order_str}."
         else:
-            raise ValueError("There are no missing dependencies or jobs out of order, so there is nothing to render.")
+            raise ValueError(
+                "There are no missing dependencies or jobs out of order, so there is nothing to render."
+            )

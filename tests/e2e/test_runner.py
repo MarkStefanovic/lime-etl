@@ -67,8 +67,12 @@ def test_run_with_sqlite_using_default_parameters(
     in_memory_db: sa.engine.Engine,
 ) -> None:
     etl_jobs = [
-        HelloWorldJob("hello_world_job", dependencies=[value_objects.JobName("delete_old_logs")]),
-        HelloWorldJob("hello_world_job2", dependencies=[value_objects.JobName("delete_old_logs")]),
+        HelloWorldJob(
+            "hello_world_job", dependencies=[value_objects.JobName("delete_old_logs")]
+        ),
+        HelloWorldJob(
+            "hello_world_job2", dependencies=[value_objects.JobName("delete_old_logs")]
+        ),
     ]
     actual = runner.run(
         engine_or_uri=in_memory_db,
@@ -105,8 +109,12 @@ def test_run_with_unresolved_dependencies(
     in_memory_db: sa.engine.Engine,
 ) -> None:
     etl_jobs = [
-        HelloWorldJob("hello_world_job", dependencies=[value_objects.JobName("delete_old_logs2")]),  # does not exist
-        HelloWorldJob("hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]),
+        HelloWorldJob(
+            "hello_world_job", dependencies=[value_objects.JobName("delete_old_logs2")]
+        ),  # dependency does not exist
+        HelloWorldJob(
+            "hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]
+        ),
     ]
 
     with pytest.raises(exceptions.DependencyErrors) as e:
@@ -116,14 +124,19 @@ def test_run_with_unresolved_dependencies(
             admin_jobs=runner.DEFAULT_ADMIN_JOBS,
         )
 
-    assert str(e.value) == "[hello_world_job] has the following unresolved dependencies: [delete_old_logs2]."
+    assert (
+        str(e.value)
+        == "[hello_world_job] has the following unresolved dependencies: [delete_old_logs2]."
+    )
 
 
 def test_run_with_dependencies_out_of_order(
     in_memory_db: sa.engine.Engine,
 ) -> None:
     etl_jobs = [
-        HelloWorldJob("hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]),  # relies on later job
+        HelloWorldJob(
+            "hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]
+        ),  # job relies on dependency that comes after it
         HelloWorldJob("hello_world_job", dependencies=[]),
     ]
 
@@ -134,4 +147,7 @@ def test_run_with_dependencies_out_of_order(
             admin_jobs=runner.DEFAULT_ADMIN_JOBS,
         )
 
-    assert str(e.value) == "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
+    assert (
+        str(e.value)
+        == "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
+    )

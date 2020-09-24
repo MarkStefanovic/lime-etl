@@ -1,6 +1,6 @@
 import typing
 
-from lime_etl.domain import job_dependency_errors, value_objects
+from lime_etl.domain import job_dependency_errors
 
 
 class LimeETLException(Exception):
@@ -12,7 +12,11 @@ class LimeETLException(Exception):
 
 
 class DependencyErrors(LimeETLException):
-    def __init__(self, dependency_errors: typing.Set[job_dependency_errors.JobDependencyErrors], /):
+    def __init__(
+        self,
+        dependency_errors: typing.Set[job_dependency_errors.JobDependencyErrors],
+        /,
+    ):
         self.dependency_errors = dependency_errors
 
         msg = "\n".join(str(e) for e in sorted(dependency_errors))
