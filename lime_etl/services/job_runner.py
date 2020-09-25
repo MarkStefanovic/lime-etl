@@ -81,14 +81,7 @@ def default_job_runner(
                 )
                 return result
     except Exception as e:
-        logger.log_error(
-            value_objects.LogMessage(
-                (
-                    f"An error occurred while running the job [{job.job_name.value}]:"
-                    f"\n{traceback.format_exc(10)}"
-                )
-            ),
-        )
+        logger.log_error(value_objects.LogMessage(traceback.format_exc(10)))
         return job_result.JobResult(
             id=job_id,
             batch_id=batch_id,
@@ -110,7 +103,6 @@ def _run_with_retry(
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
 ) -> job_result.JobResult:
-    # noinspection PyBroadException
     try:
         return _run_job_with_tests(
             batch_id=batch_id,
@@ -121,10 +113,11 @@ def _run_with_retry(
             uow=uow,
         )
     except:
+        logger.log_error(value_objects.LogMessage(traceback.format_exc(10)))
         if max_retries > retries_so_far:
             logger.log_info(
                 value_objects.LogMessage(
-                    f"Running retry {retries_so_far} or {max_retries}..."
+                    f"Running retry {retries_so_far} of {max_retries}..."
                 )
             )
             return _run_with_retry(
@@ -156,59 +149,84 @@ def _run_job_with_tests(
 ) -> job_result.JobResult:
     start_time = datetime.datetime.now()
     if isinstance(job, job_spec.AdminJobSpec):
-        result: value_objects.Result = job.run(uow=uow, logger=logger)
+        result: value_objects.Result = (
+            job.run(uow=uow, logger=logger) or value_objects.Result.success()
+        )
     elif isinstance(job, job_spec.ETLJobSpec):
-        result = job.run(logger=logger)
+        result = job.run(logger=logger) or value_objects.Result.success()
     else:
         raise ValueError(
             f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."
         )
+    end_time = datetime.datetime.now()
+    execution_millis = int((end_time - start_time).total_seconds() * 1000)
 
-    if result is None:
-        result = value_objects.Result.success()
-    elif isinstance(result, value_objects.Result):
-        logger.log_info(
-            value_objects.LogMessage(f"[{job.job_name.value}] finished successfully.")
-        )
-    else:
+    if not isinstance(result, value_objects.Result):
         raise ValueError(
-            f"A job should return an instance of either Success or Failure, but [{job.job_name.value}] "
-            f"returned {result!r}."
+            f"A job should return an instance of either Success or Failure, but "
+            f"[{job.job_name.value}] returned {result!r}."
         )
 
-    if result.is_failure:
+    if result.is_success:
         logger.log_info(
             value_objects.LogMessage(
-                f"[{job.job_name.value}] failed, so there is no point in running the tests.  "
-                f"They have been skipped."
+                f"[{job.job_name.value}] finished successfully."
             )
         )
-        test_results: typing.Collection[job_test_result.SimpleJobTestResult] = []
-    else:
         logger.log_info(
-            value_objects.LogMessage(f"Running the tests for [{job.job_name.value}]...")
+            value_objects.LogMessage(
+                f"Running the tests for [{job.job_name.value}]..."
+            )
         )
+        test_start_time = datetime.datetime.now()
         if isinstance(job, job_spec.AdminJobSpec):
             test_results = job.test(logger=logger, uow=uow)
         else:
             test_results = job.test(logger=logger)  # type: ignore
-
-    if test_results:
-        full_test_results = frozenset(
-            job_test_result.JobTestResult(
-                id=value_objects.UniqueId.generate(),
-                job_id=job_id,
-                test_name=test_result.test_name,
-                test_success_or_failure=test_result.test_success_or_failure,
-                ts=ts_adapter.now(),
-            )
-            for test_result in test_results
+        test_execution_millis = int(
+            (datetime.datetime.now() - test_start_time).total_seconds() * 1000
         )
+
+        if test_results:
+            tests_passed = sum(
+                1 for test_result in test_results if test_result.test_passed
+            )
+            tests_failed = sum(
+                1 for test_result in test_results if test_result.test_failed
+            )
+            logger.log_info(
+                value_objects.LogMessage(
+                    f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
+                )
+            )
+            full_test_results: typing.FrozenSet[job_test_result.JobTestResult] = frozenset(
+                job_test_result.JobTestResult(
+                    id=value_objects.UniqueId.generate(),
+                    job_id=job_id,
+                    test_name=test_result.test_name,
+                    test_success_or_failure=test_result.test_success_or_failure,
+                    execution_millis=value_objects.ExecutionMillis(
+                        test_execution_millis
+                    ),
+                    execution_success_or_failure=value_objects.Result.success(),
+                    ts=ts_adapter.now(),
+                )
+                for test_result in test_results
+            )
+        else:
+            logger.log_info(
+                value_objects.LogMessage("The job test method returned no results.")
+            )
+            full_test_results = frozenset()
     else:
+        logger.log_info(
+            value_objects.LogMessage(
+                f"An exception occurred while running [{job.job_name.value}]: "
+                f"{result.failure_message}."
+            )
+        )
         full_test_results = frozenset()
 
-    end_time = datetime.datetime.now()
-    execution_millis = int((end_time - start_time).total_seconds() * 1000)
     ts = ts_adapter.now()
     return job_result.JobResult(
         id=job_id,

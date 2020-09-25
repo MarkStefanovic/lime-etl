@@ -15,6 +15,8 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
         job_id=job_id,
         test_name=value_objects.TestName("dummy_test"),
         test_success_or_failure=value_objects.Result.success(),
+        execution_millis=value_objects.ExecutionMillis(10),
+        execution_success_or_failure=value_objects.Result.success(),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
     )
     job = job_result.JobResult(
@@ -81,6 +83,8 @@ def test_sqlalchemy_batch_repository_add_job_result(session: Session) -> None:
         job_id=job_id,
         test_name=value_objects.TestName("dummy_test"),
         test_success_or_failure=value_objects.Result.success(),
+        execution_millis=value_objects.ExecutionMillis(10),
+        execution_success_or_failure=value_objects.Result.success(),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
     )
     new_job = job_result.JobResult(
@@ -362,11 +366,11 @@ def test_get_latest_results_for_job(session: Session) -> None:
     session.execute(
         f"""
         INSERT INTO job_test_results 
-            (id, job_id, test_name, test_passed, test_failure_message, ts)
+            (id, job_id, test_name, test_passed, test_failure_message, execution_millis, execution_error_occurred, execution_error_message, ts)
         VALUES 
-            ('i1396d94bd55a455baf80a26209349d6', 'j1396d94bd55a455baf80a26209349d6', 'dummy_test_1', 1, NULL, '2010-01-01 01:01:01.000000'),
-            ('i2396d94bd55a455baf80a26209349d6', 'j1396d94bd55a455baf80a26209349d6', 'dummy_test_2', 1, NULL, '2020-01-01 04:01:01.000000'),
-            ('i3396d94bd55a455baf80a26209349d6', 'j2396d94bd55a455baf80a26209349d6', 'dummy_test_2', 1, NULL, '2020-01-01 01:01:05.000000');
+            ('i1396d94bd55a455baf80a26209349d6', 'j1396d94bd55a455baf80a26209349d6', 'dummy_test_1', 1, NULL, 10, 0, NULL, '2010-01-01 01:01:01.000000'),
+            ('i2396d94bd55a455baf80a26209349d6', 'j1396d94bd55a455baf80a26209349d6', 'dummy_test_2', 1, NULL, 10, 0, NULL, '2020-01-01 04:01:01.000000'),
+            ('i3396d94bd55a455baf80a26209349d6', 'j2396d94bd55a455baf80a26209349d6', 'dummy_test_2', 1, NULL, 10, 0, NULL, '2020-01-01 01:01:05.000000');
     """
     )
     session.commit()
@@ -386,6 +390,8 @@ def test_get_latest_results_for_job(session: Session) -> None:
                 job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
                 test_name=value_objects.TestName("dummy_test_1"),
                 test_success_or_failure=value_objects.Result(value_objects.Success()),
+                execution_millis=value_objects.ExecutionMillis(10),
+                execution_success_or_failure=value_objects.Result.success(),
                 ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
             ),
             job_test_result.JobTestResult(
@@ -393,6 +399,8 @@ def test_get_latest_results_for_job(session: Session) -> None:
                 job_id=value_objects.UniqueId("j1396d94bd55a455baf80a26209349d6"),
                 test_name=value_objects.TestName("dummy_test_2"),
                 test_success_or_failure=value_objects.Result(value_objects.Success()),
+                execution_millis=value_objects.ExecutionMillis(10),
+                execution_success_or_failure=value_objects.Result.success(),
                 ts=value_objects.Timestamp(datetime.datetime(2020, 1, 1, 4, 1, 1)),
             ),
         }

@@ -15,6 +15,9 @@ class JobTestResultDTO:
     test_name: str
     test_passed: bool
     test_failure_message: Optional[str]
+    execution_millis: int
+    execution_error_occurred: bool
+    execution_error_message: Optional[str]
     ts: datetime.datetime
 
     def to_domain(self) -> JobTestResult:
@@ -25,11 +28,20 @@ class JobTestResultDTO:
                 self.test_failure_message or "No error message was provided."
             )
 
+        if self.execution_error_occurred:
+            execution_success_or_failure = value_objects.Result.failure(
+                self.execution_error_message or "No error message was provided."
+            )
+        else:
+            execution_success_or_failure = value_objects.Result.success()
+
         return JobTestResult(
             id=value_objects.UniqueId(self.id),
             job_id=value_objects.UniqueId(self.job_id),
             test_name=value_objects.TestName(self.test_name),
             test_success_or_failure=test_success_or_failure,
+            execution_millis=value_objects.ExecutionMillis(self.execution_millis),
+            execution_success_or_failure=execution_success_or_failure,
             ts=value_objects.Timestamp(self.ts),
         )
 
@@ -40,6 +52,8 @@ class JobTestResult:
     job_id: value_objects.UniqueId
     test_name: value_objects.TestName
     test_success_or_failure: value_objects.Result
+    execution_millis: value_objects.ExecutionMillis
+    execution_success_or_failure: value_objects.Result
     ts: value_objects.Timestamp
 
     @property
@@ -57,6 +71,9 @@ class JobTestResult:
             test_name=self.test_name.value,
             test_failure_message=self.test_success_or_failure.failure_message_or_none,
             test_passed=self.test_passed,
+            execution_millis=self.execution_millis.value,
+            execution_error_occurred=self.execution_success_or_failure.is_failure,
+            execution_error_message=self.execution_success_or_failure.failure_message_or_none,
             ts=self.ts.value,
         )
 
@@ -67,5 +84,9 @@ class SimpleJobTestResult:
     test_success_or_failure: value_objects.Result
 
     @property
+    def test_failed(self) -> bool:
+        return self.test_success_or_failure.is_failure
+
+    @property
     def test_passed(self) -> bool:
-        return not self.test_success_or_failure.is_failure
+        return self.test_success_or_failure.is_success

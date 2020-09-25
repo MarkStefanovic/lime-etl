@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import enum
 import re
+import warnings
 from typing import Any, Optional, Union, cast
 from uuid import uuid4
 
@@ -252,9 +253,9 @@ class JobName(ValueObject):
                 f"{self.__class__.__name__} value is required, but got None."
             )
         elif isinstance(value, str):
-            if len(value) < 3 or len(value) >= 100:
+            if len(value) < 3 or len(value) >= 200:
                 raise ValueError(
-                    f"{self.__class__.__name__} must be between 3 and 100 characters long, but got "
+                    f"{self.__class__.__name__} must be between 3 and 200 characters long, but got "
                     f"{value!r}."
                 )
         else:
@@ -291,9 +292,9 @@ class TestName(ValueObject):
                 f"{self.__class__.__name__} value is required, but got None."
             )
         elif isinstance(value, str):
-            if len(value) < 3 or len(value) > 100:
+            if len(value) < 3 or len(value) > 200:
                 raise ValueError(
-                    f"{self.__class__.__name__} must be between 3 and 100 characters long, "
+                    f"{self.__class__.__name__} must be between 3 and 200 characters long, "
                     f"but got {value!r}."
                 )
         else:
@@ -481,8 +482,25 @@ class LogLevel(ValueObject):
             raise ValueError(f"{self.value} is not a LogLevelOption value.")
 
 
-class LogMessage(_NonEmptyStr):
-    ...
+class LogMessage(ValueObject):
+    def __init__(self, value: str, /):
+        if not value:
+            raise ValueError(
+                f"{self.__class__.__name__} value is required, but got {value!r}."
+            )
+        elif isinstance(value, str):
+            if len(value) > 2000:
+                warnings.warn(
+                    f"{self.__class__.__name__} must be <= 2000 characters long, but the message "
+                    f"is {len(value)}. It has been truncated to fit."
+                )
+                value = value[-2000:]
+        else:
+            raise TypeError(
+                f"{self.__class__.__name__} expects a str, but got {value!r}"
+            )
+
+        super().__init__(value)
 
 
 class SecondsSinceLastRefresh(ValueObject):
