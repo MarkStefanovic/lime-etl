@@ -64,13 +64,11 @@ def default_job_runner(
                     f"The following dependencies failed to execute: {exceptions}"
                 )
             else:
-                result = _run_with_retry(
+                result = _run_jobs_with_tests(
                     batch_id=batch_id,
                     job_id=job_id,
                     job=job,
                     logger=logger,
-                    retries_so_far=0,
-                    max_retries=job.max_retries.value,
                     ts_adapter=ts_adapter,
                     uow=uow,
                 )
@@ -93,53 +91,7 @@ def default_job_runner(
         )
 
 
-def _run_with_retry(
-    batch_id: value_objects.UniqueId,
-    job_id: value_objects.UniqueId,
-    job: job_spec.JobSpec,
-    max_retries: int,
-    retries_so_far: int,
-    logger: job_logging_service.JobLoggingService,
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-    uow: unit_of_work.UnitOfWork,
-) -> job_result.JobResult:
-    try:
-        return _run_job_with_tests(
-            batch_id=batch_id,
-            job_id=job_id,
-            job=job,
-            logger=logger,
-            ts_adapter=ts_adapter,
-            uow=uow,
-        )
-    except:
-        logger.log_error(value_objects.LogMessage(traceback.format_exc(10)))
-        if max_retries > retries_so_far:
-            logger.log_info(
-                value_objects.LogMessage(
-                    f"Running retry {retries_so_far} of {max_retries}..."
-                )
-            )
-            return _run_with_retry(
-                batch_id=batch_id,
-                job_id=job_id,
-                job=job,
-                max_retries=max_retries,
-                retries_so_far=retries_so_far + 1,
-                logger=logger,
-                ts_adapter=ts_adapter,
-                uow=uow,
-            )
-        else:
-            logger.log_info(
-                value_objects.LogMessage(
-                    f"[{job.job_name.value}] failed after {max_retries} retries."
-                )
-            )
-            raise
-
-
-def _run_job_with_tests(
+def _run_jobs_with_tests(
     batch_id: value_objects.UniqueId,
     job_id: value_objects.UniqueId,
     job: job_spec.JobSpec,
@@ -147,42 +99,27 @@ def _run_job_with_tests(
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
 ) -> job_result.JobResult:
-    start_time = datetime.datetime.now()
-    if isinstance(job, job_spec.AdminJobSpec):
-        result: value_objects.Result = (
-            job.run(uow=uow, logger=logger) or value_objects.Result.success()
-        )
-    elif isinstance(job, job_spec.ETLJobSpec):
-        result = job.run(logger=logger) or value_objects.Result.success()
-    else:
-        raise ValueError(
-            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."
-        )
-    end_time = datetime.datetime.now()
-    execution_millis = int((end_time - start_time).total_seconds() * 1000)
-
-    if not isinstance(result, value_objects.Result):
-        raise ValueError(
-            f"A job should return an instance of either Success or Failure, but "
-            f"[{job.job_name.value}] returned {result!r}."
-        )
-
+    result, execution_millis = _run_with_retry(
+        job=job,
+        logger=logger,
+        retries_so_far=0,
+        max_retries=job.max_retries.value,
+        uow=uow,
+    )
     if result.is_success:
         logger.log_info(
-            value_objects.LogMessage(
-                f"[{job.job_name.value}] finished successfully."
-            )
+            value_objects.LogMessage(f"[{job.job_name.value}] finished successfully.")
         )
         logger.log_info(
-            value_objects.LogMessage(
-                f"Running the tests for [{job.job_name.value}]..."
-            )
+            value_objects.LogMessage(f"Running the tests for [{job.job_name.value}]...")
         )
         test_start_time = datetime.datetime.now()
         if isinstance(job, job_spec.AdminJobSpec):
             test_results = job.test(logger=logger, uow=uow)
+        elif isinstance(job, job_spec.ETLJobSpec):
+            test_results = job.test(logger=logger)
         else:
-            test_results = job.test(logger=logger)  # type: ignore
+            raise ValueError(f"Expected either an AdminJobSpec or an ETLJobSpec, but got {job!r}")
         test_execution_millis = int(
             (datetime.datetime.now() - test_start_time).total_seconds() * 1000
         )
@@ -199,7 +136,9 @@ def _run_job_with_tests(
                     f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
                 )
             )
-            full_test_results: typing.FrozenSet[job_test_result.JobTestResult] = frozenset(
+            full_test_results: typing.FrozenSet[
+                job_test_result.JobTestResult
+            ] = frozenset(
                 job_test_result.JobTestResult(
                     id=value_objects.UniqueId.generate(),
                     job_id=job_id,
@@ -237,3 +176,59 @@ def _run_job_with_tests(
         execution_success_or_failure=value_objects.Result.success(),
         ts=ts,
     )
+
+
+def _run_with_retry(
+    job: job_spec.JobSpec,
+    max_retries: int,
+    retries_so_far: int,
+    logger: job_logging_service.JobLoggingService,
+    uow: unit_of_work.UnitOfWork,
+) -> typing.Tuple[value_objects.Result, int]:
+    # noinspection PyBroadException
+    try:
+        start_time = datetime.datetime.now()
+        result = _run(
+            job=job,
+            logger=logger,
+            uow=uow,
+        )
+        end_time = datetime.datetime.now()
+        return result, int((end_time - start_time).total_seconds() * 1000)
+    except:
+        logger.log_error(value_objects.LogMessage(traceback.format_exc(10)))
+        if max_retries > retries_so_far:
+            logger.log_info(
+                value_objects.LogMessage(
+                    f"Running retry {retries_so_far} of {max_retries}..."
+                )
+            )
+            return _run_with_retry(
+                job=job,
+                max_retries=max_retries,
+                retries_so_far=retries_so_far + 1,
+                logger=logger,
+                uow=uow,
+            )
+        else:
+            logger.log_info(
+                value_objects.LogMessage(
+                    f"[{job.job_name.value}] failed after {max_retries} retries."
+                )
+            )
+            raise
+
+
+def _run(
+    job: job_spec.JobSpec,
+    logger: job_logging_service.JobLoggingService,
+    uow: unit_of_work.UnitOfWork,
+) -> value_objects.Result:
+    if isinstance(job, job_spec.AdminJobSpec):
+        return job.run(uow=uow, logger=logger) or value_objects.Result.success()
+    elif isinstance(job, job_spec.ETLJobSpec):
+        return job.run(logger=logger) or value_objects.Result.success()
+    else:
+        raise ValueError(
+            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."
+        )
