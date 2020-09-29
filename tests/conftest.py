@@ -6,18 +6,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, clear_mappers, sessionmaker
 
-from lime_etl.adapters import batch_repository, timestamp_adapter
-from lime_etl.adapters import batch_log_repository, job_log_repository
+from lime_etl.adapters import (
+    batch_log_repository,
+    batch_repository,
+    job_log_repository,
+    timestamp_adapter,
+)
 from lime_etl.adapters.orm import metadata, start_mappers
 from lime_etl.domain import (
     batch,
     batch_log_entry,
     job_log_entry,
     job_result,
-    job_test_result,
     value_objects,
 )
-from services import unit_of_work  # type: ignore
+from lime_etl.services import unit_of_work  # type: ignore
 
 
 @pytest.fixture
@@ -115,7 +118,9 @@ class DummyBatchRepository(batch_repository.BatchRepository):
         self.entries = [e for e in self.entries if e.ts.value > cutoff]
         return len(self.entries)
 
-    def get_batch_by_id(self, batch_id: value_objects.UniqueId) -> Optional[batch.Batch]:
+    def get_batch_by_id(
+        self, batch_id: value_objects.UniqueId
+    ) -> Optional[batch.Batch]:
         return None
 
     def get_last_successful_ts_for_job(

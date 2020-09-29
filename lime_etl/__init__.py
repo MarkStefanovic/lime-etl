@@ -9,6 +9,7 @@ from lime_etl.domain.exceptions import *  # noqa
 from lime_etl.domain.job_dependency_errors import JobDependencyErrors  # noqa
 from lime_etl.domain.job_spec import AdminJobSpec, ETLJobSpec, JobSpec  # noqa
 from lime_etl.domain.job_test_result import JobTestResult, SimpleJobTestResult  # noqa
+from lime_etl.domain.shared_resource import SharedResource  # noqa
 from lime_etl.domain.value_objects import *  # noqa
 from lime_etl.services.admin.delete_old_logs import DeleteOldLogs  # noqa
 from lime_etl.services.batch_logging_service import (  # noqa

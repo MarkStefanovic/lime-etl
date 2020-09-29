@@ -4,30 +4,40 @@ import traceback
 import typing
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import job_result, job_spec, job_test_result, value_objects
+from lime_etl.domain import (
+    job_result,
+    job_spec,
+    job_test_result,
+    shared_resource,
+    value_objects,
+)
 from lime_etl.services import job_logging_service, unit_of_work
 
 
 class JobRunner(typing.Protocol):
     def __call__(
         self,
-        uow: unit_of_work.UnitOfWork,
+        *,
         batch_id: value_objects.UniqueId,
-        job_id: value_objects.UniqueId,
         job: job_spec.JobSpec,
+        job_id: value_objects.UniqueId,
         logger: job_logging_service.JobLoggingService,
+        resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
         ts_adapter: timestamp_adapter.TimestampAdapter,
+        uow: unit_of_work.UnitOfWork,
     ) -> job_result.JobResult:
         ...
 
 
 def default_job_runner(
-    uow: unit_of_work.UnitOfWork,
+    *,
     batch_id: value_objects.UniqueId,
-    job_id: value_objects.UniqueId,
     job: job_spec.JobSpec,
+    job_id: value_objects.UniqueId,
     logger: job_logging_service.JobLoggingService,
+    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
     ts_adapter: timestamp_adapter.TimestampAdapter,
+    uow: unit_of_work.UnitOfWork,
 ) -> job_result.JobResult:
     try:
         logger.log_info(value_objects.LogMessage(f"Starting [{job.job_name.value}]..."))
@@ -66,9 +76,10 @@ def default_job_runner(
             else:
                 result = _run_jobs_with_tests(
                     batch_id=batch_id,
-                    job_id=job_id,
                     job=job,
+                    job_id=job_id,
                     logger=logger,
+                    resources=resources,
                     ts_adapter=ts_adapter,
                     uow=uow,
                 )
@@ -92,18 +103,21 @@ def default_job_runner(
 
 
 def _run_jobs_with_tests(
+    *,
     batch_id: value_objects.UniqueId,
-    job_id: value_objects.UniqueId,
     job: job_spec.JobSpec,
+    job_id: value_objects.UniqueId,
     logger: job_logging_service.JobLoggingService,
+    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
 ) -> job_result.JobResult:
     result, execution_millis = _run_with_retry(
         job=job,
         logger=logger,
-        retries_so_far=0,
         max_retries=job.max_retries.value,
+        resources=resources,
+        retries_so_far=0,
         uow=uow,
     )
     if result.is_success:
@@ -117,9 +131,11 @@ def _run_jobs_with_tests(
         if isinstance(job, job_spec.AdminJobSpec):
             test_results = job.test(logger=logger, uow=uow)
         elif isinstance(job, job_spec.ETLJobSpec):
-            test_results = job.test(logger=logger)
+            test_results = job.test(logger=logger, resources=resources)
         else:
-            raise ValueError(f"Expected either an AdminJobSpec or an ETLJobSpec, but got {job!r}")
+            raise ValueError(
+                f"Expected either an AdminJobSpec or an ETLJobSpec, but got {job!r}"
+            )
         test_execution_millis = int(
             (datetime.datetime.now() - test_start_time).total_seconds() * 1000
         )
@@ -180,9 +196,10 @@ def _run_jobs_with_tests(
 
 def _run_with_retry(
     job: job_spec.JobSpec,
-    max_retries: int,
-    retries_so_far: int,
     logger: job_logging_service.JobLoggingService,
+    max_retries: int,
+    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
+    retries_so_far: int,
     uow: unit_of_work.UnitOfWork,
 ) -> typing.Tuple[value_objects.Result, int]:
     # noinspection PyBroadException
@@ -191,6 +208,7 @@ def _run_with_retry(
         result = _run(
             job=job,
             logger=logger,
+            resources=resources,
             uow=uow,
         )
         end_time = datetime.datetime.now()
@@ -205,9 +223,10 @@ def _run_with_retry(
             )
             return _run_with_retry(
                 job=job,
-                max_retries=max_retries,
-                retries_so_far=retries_so_far + 1,
                 logger=logger,
+                max_retries=max_retries,
+                resources=resources,
+                retries_so_far=retries_so_far + 1,
                 uow=uow,
             )
         else:
@@ -223,11 +242,15 @@ def _run(
     job: job_spec.JobSpec,
     logger: job_logging_service.JobLoggingService,
     uow: unit_of_work.UnitOfWork,
+    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
 ) -> value_objects.Result:
     if isinstance(job, job_spec.AdminJobSpec):
         return job.run(uow=uow, logger=logger) or value_objects.Result.success()
     elif isinstance(job, job_spec.ETLJobSpec):
-        return job.run(logger=logger) or value_objects.Result.success()
+        return (
+            job.run(resources=resources, logger=logger)
+            or value_objects.Result.success()
+        )
     else:
         raise ValueError(
             f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."

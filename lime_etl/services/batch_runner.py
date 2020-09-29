@@ -11,6 +11,7 @@ from lime_etl.domain import (
     job_dependency_errors,
     job_result,
     job_spec,
+    shared_resource,
     value_objects,
 )
 from lime_etl.services import (
@@ -24,19 +25,23 @@ from lime_etl.services import job_logging_service, unit_of_work
 class BatchRunner(Protocol):
     def __call__(
         self,
-        uow: unit_of_work.UnitOfWork,
+        *,
         batch_id: value_objects.UniqueId,
-        jobs: typing.Collection[job_spec.JobSpec],
         batch_logger: batch_logging_service.BatchLoggingService,
+        jobs: typing.Collection[job_spec.JobSpec],
+        resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
         ts_adapter: timestamp_adapter.TimestampAdapter,
+        uow: unit_of_work.UnitOfWork,
     ) -> batch.Batch:
         ...
 
 
 def run(
-    uow: unit_of_work.UnitOfWork,
+    *,
     jobs: typing.Collection[job_spec.JobSpec],
+    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
     ts_adapter: timestamp_adapter.TimestampAdapter,
+    uow: unit_of_work.UnitOfWork,
 ) -> batch_delta.BatchDelta:
     batch_id = value_objects.UniqueId.generate()
     batch_logger = batch_logging_service.DefaultBatchLoggingService(
@@ -44,11 +49,9 @@ def run(
     )
     dep_results = check_dependencies(jobs)
     if dep_results:
-        e = exceptions.DependencyErrors(dep_results)
-
-        batch_logger.log_error(
-            value_objects.LogMessage("\n".join(str(e) for e in sorted(dep_results)))
-        )
+        # noinspection PyTypeChecker
+        err_msg = "\n".join(str(e) for e in sorted(dep_results))
+        batch_logger.log_error(value_objects.LogMessage(err_msg))
         raise exceptions.DependencyErrors(dep_results)
 
     try:
@@ -73,6 +76,7 @@ def run(
             uow=uow,
             batch_id=batch_id,
             jobs=jobs,
+            resources=resources,
             ts_adapter=ts_adapter,
         )
         uow.batches.update(result)
@@ -117,8 +121,12 @@ def check_dependencies(
     return {
         job_dependency_errors.JobDependencyErrors(
             job_name=job_name,
-            missing_dependencies=frozenset(unresolved_dependencies_by_table.get(job_name, set())),
-            jobs_out_of_order=frozenset(jobs_out_of_order_by_table.get(job_name, set())),
+            missing_dependencies=frozenset(
+                unresolved_dependencies_by_table.get(job_name, set())
+            ),
+            jobs_out_of_order=frozenset(
+                jobs_out_of_order_by_table.get(job_name, set())
+            ),
         )
         for job_name in set(
             itertools.chain(
@@ -129,17 +137,55 @@ def check_dependencies(
     }
 
 
+def _check_resources_needed_for_job_are_available(
+    job: job_spec.ETLJobSpec,
+    resource_names: typing.Iterable[value_objects.ResourceName],
+) -> None:
+    missing_resources: typing.List[value_objects.ResourceName] = []
+    for resource_name in job.resources_needed:
+        if resource_name not in resource_names:
+            missing_resources.append(resource_name)
+
+    if missing_resources:
+        raise exceptions.MissingResourceError(
+            job_name=job.job_name, missing_resources=missing_resources
+        )
+
+
+def _is_resource_still_needed(
+    remaining_jobs: typing.Collection[job_spec.JobSpec],
+    resource_name: value_objects.ResourceName,
+) -> bool:
+    return any(
+        isinstance(job, job_spec.ETLJobSpec) and resource_name in job.resources_needed
+        for job in remaining_jobs
+    )
+
+
 def _run_batch(
-    batch_logger: batch_logging_service.BatchLoggingService,
-    uow: unit_of_work.UnitOfWork,
     batch_id: value_objects.UniqueId,
-    jobs: typing.Iterable[job_spec.JobSpec],
+    batch_logger: batch_logging_service.BatchLoggingService,
+    jobs: typing.Collection[job_spec.JobSpec],
+    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
     ts_adapter: timestamp_adapter.TimestampAdapter,
+    uow: unit_of_work.UnitOfWork,
 ) -> batch.Batch:
     start_ts = ts_adapter.now()
 
     job_results: List[job_result.JobResult] = []
-    for job in jobs:
+    resource_managers = {
+        resource.name: shared_resource.ResourceManager(resource)
+        for resource in resources
+    }
+    job_resource_managers = {
+        job.job_name: {
+            resource_name: resource_managers[resource_name]
+            for resource_name in job.resources_needed
+        }
+        for job in jobs
+        if isinstance(job, job_spec.ETLJobSpec)
+    }
+    for ix, job in enumerate(jobs):
         with uow:
             last_ts = uow.batches.get_last_successful_ts_for_job(job_name=job.job_name)
 
@@ -157,6 +203,19 @@ def _run_batch(
                 )
                 continue
 
+        # open resources needed for job
+        if isinstance(job, job_spec.ETLJobSpec):
+            _check_resources_needed_for_job_are_available(
+                job=job, resource_names=resource_managers.keys()
+            )
+            job_resources = {
+                resource_name: resource_manager.open()
+                for resource_name, resource_manager
+                in job_resource_managers[job.job_name].items()
+            }
+        else:
+            job_resources = {}
+
         job_id = value_objects.UniqueId.generate()
         job_logger = job_logging_service.DefaultJobLoggingService(
             uow=uow, batch_id=batch_id, job_id=job_id
@@ -167,12 +226,23 @@ def _run_batch(
             logger=job_logger,
             batch_id=batch_id,
             job_id=job_id,
+            resources=job_resources,
             ts_adapter=ts_adapter,
         )
         job_results.append(result)
         with uow:
             uow.batches.add_job_result(result)
             uow.commit()
+
+        if isinstance(job, job_spec.ETLJobSpec):
+            # clean up resources no longer needed
+            remaining_jobs = list(jobs)[ix + 1:]
+            for resource_name, resource_manager in job_resource_managers[job.job_name].items():
+                resource_needed = _is_resource_still_needed(
+                    remaining_jobs=remaining_jobs, resource_name=resource_name
+                )
+                if not resource_needed:
+                    resource_manager.close()
 
     end_time = ts_adapter.now().value
     execution_millis = int((end_time - start_ts.value).total_seconds() * 1000)

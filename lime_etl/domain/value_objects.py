@@ -266,6 +266,10 @@ class JobName(ValueObject):
         super().__init__(value)
 
 
+class ResourceName(_NonEmptyStr):
+    ...
+
+
 class SecondsBetweenRefreshes(ValueObject):
     def __init__(self, value: int, /):
         if value is None:

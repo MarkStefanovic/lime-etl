@@ -1,27 +1,37 @@
 import tempfile
-from typing import Iterable, List
 
 import pytest
 import sqlalchemy as sa
+import typing
 
-from lime_etl.domain import exceptions, job_spec, job_test_result, value_objects
+from lime_etl.domain import (
+    exceptions,
+    job_spec,
+    job_test_result,
+    shared_resource,
+    value_objects,
+)
 from lime_etl import runner
 from lime_etl.services import job_logging_service
 
 
 class HelloWorldJob(job_spec.ETLJobSpec):
-    def __init__(self, job_name: str, dependencies: List[value_objects.JobName]):
+    def __init__(self, job_name: str, dependencies: typing.List[value_objects.JobName]):
         self._job_name = job_name
         self._dependencies = dependencies
         self._file_created: bool = False
 
-    def run(self, logger: job_logging_service.JobLoggingService) -> None:
-        with tempfile.TemporaryFile() as fp:
-            fp.write(b"Hello World")
-            self._file_created = True
+    def run(
+        self,
+        logger: job_logging_service.JobLoggingService,
+        resources: typing.Mapping[value_objects.ResourceName, typing.Any],
+    ) -> None:
+        fh: typing.IO[bytes] = resources[value_objects.ResourceName("hello_world_file")]
+        fh.write(b"Hello World")
+        self._file_created = True
 
     @property
-    def dependencies(self) -> List[value_objects.JobName]:
+    def dependencies(self) -> typing.List[value_objects.JobName]:
         return self._dependencies
 
     @property
@@ -44,9 +54,19 @@ class HelloWorldJob(job_spec.ETLJobSpec):
     def max_retries(self) -> value_objects.MaxRetries:
         return value_objects.MaxRetries(1)
 
+    @property
+    def resources_needed(
+        self,
+    ) -> typing.Collection[value_objects.ResourceName]:
+        return [value_objects.ResourceName("hello_world_file")]
+
     def test(
-        self, logger: job_logging_service.JobLoggingService
-    ) -> Iterable[job_test_result.SimpleJobTestResult]:
+        self,
+        logger: job_logging_service.JobLoggingService,
+        resources: typing.Mapping[
+            value_objects.ResourceName, shared_resource.SharedResource
+        ],
+    ) -> typing.Iterable[job_test_result.SimpleJobTestResult]:
         if self._file_created:
             return [
                 job_test_result.SimpleJobTestResult(
@@ -63,6 +83,23 @@ class HelloWorldJob(job_spec.ETLJobSpec):
             ]
 
 
+class TempFileResource(shared_resource.SharedResource[typing.IO[bytes]]):
+    def __init__(self, name: str):
+        self._name = name
+        self._file_handle: typing.Optional[typing.IO[bytes]] = None
+
+    @property
+    def name(self) -> value_objects.ResourceName:
+        return value_objects.ResourceName(self._name)
+
+    def open(self) -> typing.IO[bytes]:
+        self._file_handle = tempfile.TemporaryFile()
+        return self._file_handle
+
+    def close(self) -> None:
+        self._file_handle.close()
+
+
 def test_run_with_sqlite_using_default_parameters(
     in_memory_db: sa.engine.Engine,
 ) -> None:
@@ -74,10 +111,12 @@ def test_run_with_sqlite_using_default_parameters(
             "hello_world_job2", dependencies=[value_objects.JobName("delete_old_logs")]
         ),
     ]
+    resources = [TempFileResource("hello_world_file")]
     actual = runner.run(
+        admin_jobs=runner.DEFAULT_ADMIN_JOBS,
         engine_or_uri=in_memory_db,
         etl_jobs=etl_jobs,
-        admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+        resources=resources,
     )
 
     job_execution_results = [
@@ -116,12 +155,13 @@ def test_run_with_unresolved_dependencies(
             "hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]
         ),
     ]
-
+    resources = [TempFileResource("hello_world_file")]
     with pytest.raises(exceptions.DependencyErrors) as e:
         runner.run(
+            admin_jobs=runner.DEFAULT_ADMIN_JOBS,
             engine_or_uri=in_memory_db,
             etl_jobs=etl_jobs,
-            admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+            resources=resources,
         )
 
     assert (
@@ -139,12 +179,13 @@ def test_run_with_dependencies_out_of_order(
         ),  # job relies on dependency that comes after it
         HelloWorldJob("hello_world_job", dependencies=[]),
     ]
-
+    resources = [TempFileResource("hello_world_file")]
     with pytest.raises(exceptions.DependencyErrors) as e:
         runner.run(
             engine_or_uri=in_memory_db,
             etl_jobs=etl_jobs,
             admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+            resources=resources,
         )
 
     assert (
