@@ -1,3 +1,4 @@
+import datetime
 import itertools
 from typing import List, Protocol, runtime_checkable
 
@@ -47,14 +48,12 @@ def run(
     batch_logger = batch_logging_service.DefaultBatchLoggingService(
         uow=uow, batch_id=batch_id
     )
-    dep_results = check_dependencies(jobs)
-    if dep_results:
-        # noinspection PyTypeChecker
-        err_msg = "\n".join(str(e) for e in sorted(dep_results))
-        batch_logger.log_error(value_objects.LogMessage(err_msg))
-        raise exceptions.DependencyErrors(dep_results)
-
+    start_time = datetime.datetime.now()
     try:
+        dep_results = check_dependencies(jobs)
+        if dep_results:
+            raise exceptions.DependencyErrors(dep_results)
+
         with uow:
             previous_results = uow.batches.get_latest()
             new_batch = batch.Batch(
@@ -79,7 +78,11 @@ def run(
             resources=resources,
             ts_adapter=ts_adapter,
         )
-        uow.batches.update(result)
+
+        with uow:
+            uow.batches.update(result)
+            uow.commit()
+
         batch_logger.log_info(
             value_objects.LogMessage(f"Batch [{batch_id.value}] finished.")
         )
@@ -89,6 +92,21 @@ def run(
         )
     except Exception as e:
         batch_logger.log_error(value_objects.LogMessage(str(e)))
+        now = ts_adapter.now()
+        end_time = datetime.datetime.now()
+        execution_millis = int((end_time - start_time).total_seconds() * 1000)
+        result = batch.Batch(
+            id=batch_id,
+            job_results=frozenset(),
+            execution_success_or_failure=value_objects.Result.failure(str(e)),
+            execution_millis=value_objects.ExecutionMillis(execution_millis),
+            running=value_objects.Flag(False),
+            ts=now,
+        )
+        with uow:
+            uow.batches.update(result)
+            uow.commit()
+
         raise
 
 
@@ -210,8 +228,9 @@ def _run_batch(
             )
             job_resources = {
                 resource_name: resource_manager.open()
-                for resource_name, resource_manager
-                in job_resource_managers[job.job_name].items()
+                for resource_name, resource_manager in job_resource_managers[
+                    job.job_name
+                ].items()
             }
         else:
             job_resources = {}
@@ -236,8 +255,10 @@ def _run_batch(
 
         if isinstance(job, job_spec.ETLJobSpec):
             # clean up resources no longer needed
-            remaining_jobs = list(jobs)[ix + 1:]
-            for resource_name, resource_manager in job_resource_managers[job.job_name].items():
+            remaining_jobs = list(jobs)[ix + 1 :]
+            for resource_name, resource_manager in job_resource_managers[
+                job.job_name
+            ].items():
                 resource_needed = _is_resource_still_needed(
                     remaining_jobs=remaining_jobs, resource_name=resource_name
                 )

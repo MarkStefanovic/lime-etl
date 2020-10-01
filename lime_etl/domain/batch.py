@@ -52,7 +52,7 @@ class Batch:
     ts: value_objects.Timestamp
 
     def __post_init__(self) -> None:
-        if self.running.value:
+        if self.running.value is True:
             if self.execution_success_or_failure:
                 raise ValueError("If a batch is running, we cannot know whether the run was successful or not.")
             if self.execution_millis:

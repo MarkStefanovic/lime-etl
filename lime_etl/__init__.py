@@ -16,7 +16,7 @@ from lime_etl.services.batch_logging_service import (  # noqa
     BatchLoggingService,
     ConsoleBatchLoggingService,
     DefaultBatchLoggingService,
-)  # noqa
+)
 from lime_etl.services.job_logging_service import (  # noqa
     ConsoleJobLoggingService,
     DefaultJobLoggingService,

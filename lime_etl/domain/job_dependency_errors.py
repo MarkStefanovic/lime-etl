@@ -13,7 +13,7 @@ class JobDependencyErrors:
     def __str__(self) -> str:
         if self.missing_dependencies:
             missing_deps_str: typing.Optional[str] = (
-                f" has the following unresolved dependencies: "
+                f" has the following unresolved dependencies: " +
                 f"{', '.join(sorted('[' + dep.value + ']' for dep in self.missing_dependencies))}"
             )
         else:
@@ -21,7 +21,7 @@ class JobDependencyErrors:
 
         if self.jobs_out_of_order:
             jobs_out_of_order_str: typing.Optional[str] = (
-                f" depends on the following jobs which come after it: "
+                f" depends on the following jobs which come after it: " +
                 f"{', '.join(sorted('[' + dep.value + ']'  for dep in self.jobs_out_of_order))}"
             )
         else:

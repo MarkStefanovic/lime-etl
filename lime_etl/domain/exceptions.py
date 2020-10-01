@@ -19,7 +19,7 @@ class DependencyErrors(LimeETLException):
     ):
         self.dependency_errors = dependency_errors
 
-        msg = "\n".join(str(e) for e in sorted(dependency_errors))
+        msg = "; ".join(str(e) for e in sorted(dependency_errors))
         super().__init__(msg)
 
 
@@ -33,6 +33,7 @@ class MissingResourceError(LimeETLException):
         self.missing_resources = missing_resources
         msg = (
             f"The job [{job_name.value}] requires the following resources, which were not found: "
-            + ", ".join(f"[{r.value}]" for r in missing_resources) + "."
+            + ", ".join(f"[{r.value}]" for r in missing_resources)
+            + "."
         )
         super().__init__(msg)
