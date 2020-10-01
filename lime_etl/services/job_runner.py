@@ -5,6 +5,7 @@ import typing
 
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
+    exceptions,
     job_result,
     job_spec,
     job_test_result,
@@ -22,7 +23,9 @@ class JobRunner(typing.Protocol):
         job: job_spec.JobSpec,
         job_id: value_objects.UniqueId,
         logger: job_logging_service.JobLoggingService,
-        resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
+        resources: typing.Mapping[
+            value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+        ],
         ts_adapter: timestamp_adapter.TimestampAdapter,
         uow: unit_of_work.UnitOfWork,
     ) -> job_result.JobResult:
@@ -35,71 +38,54 @@ def default_job_runner(
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.JobLoggingService,
-    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
+    resources: typing.Mapping[
+        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+    ],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
 ) -> job_result.JobResult:
-    try:
-        logger.log_info(value_objects.LogMessage(f"Starting [{job.job_name.value}]..."))
-        with uow:
-            current_batch = uow.batches.get_batch_by_id(batch_id)
+    logger.log_info(value_objects.LogMessage(f"Starting [{job.job_name.value}]..."))
+    with uow:
+        current_batch = uow.batches.get_batch_by_id(batch_id)
 
-        if current_batch is None:
+    if current_batch is None:
+        raise exceptions.BatchNotFound(batch_id)
+    else:
+        dep_exceptions = {
+            jr.job_name
+            for jr in current_batch.job_results
+            if jr.job_name in job.dependencies
+            and jr.execution_success_or_failure.is_failure
+        }
+        dep_test_failures = {
+            jr.job_name
+            for jr in current_batch.job_results
+            if jr.job_name in job.dependencies and jr.is_broken
+        }
+        if dep_exceptions and dep_test_failures:
+            errs = ", ".join(sorted(dep_exceptions))  # type: ignore
+            test_failures = ", ".join(sorted(dep_test_failures))  # type: ignore
             raise Exception(
-                "The current batch has not been saved to the database, so the results of dependent "
-                "jobs cannot be checked."
+                f"The following dependencies failed to execute: {errs} "
+                f"and the following jobs had test failures: {test_failures}"
             )
+        elif dep_exceptions:
+            errs = ", ".join(sorted(dep_exceptions))  # type: ignore
+            raise Exception(f"The following dependencies failed to execute: {errs}")
         else:
-            dep_exceptions = {
-                jr.job_name
-                for jr in current_batch.job_results
-                if jr.job_name in job.dependencies
-                and jr.execution_success_or_failure.is_failure
-            }
-            dep_test_failures = {
-                jr.job_name
-                for jr in current_batch.job_results
-                if jr.job_name in job.dependencies and jr.is_broken
-            }
-            if dep_exceptions and dep_test_failures:
-                exceptions = ", ".join(sorted(dep_exceptions))  # type: ignore
-                test_failures = ", ".join(sorted(dep_test_failures))  # type: ignore
-                raise Exception(
-                    f"The following dependencies failed to execute: {exceptions} "
-                    f"and the following jobs had test failures: {test_failures}"
-                )
-            elif dep_exceptions:
-                exceptions = ", ".join(sorted(dep_exceptions))  # type: ignore
-                raise Exception(
-                    f"The following dependencies failed to execute: {exceptions}"
-                )
-            else:
-                result = _run_jobs_with_tests(
-                    batch_id=batch_id,
-                    job=job,
-                    job_id=job_id,
-                    logger=logger,
-                    resources=resources,
-                    ts_adapter=ts_adapter,
-                    uow=uow,
-                )
-                logger.log_info(
-                    value_objects.LogMessage(
-                        f"Finished running [{job.job_name.value}]."
-                    )
-                )
-                return result
-    except Exception as e:
-        logger.log_error(value_objects.LogMessage(traceback.format_exc(10)))
-        return job_result.JobResult(
-            id=job_id,
-            batch_id=batch_id,
-            job_name=job.job_name,
-            test_results=frozenset(),
-            execution_success_or_failure=value_objects.Result.failure(str(e)),
-            execution_millis=value_objects.ExecutionMillis(0),
-            ts=ts_adapter.now(),
-        )
+            result = _run_jobs_with_tests(
+                batch_id=batch_id,
+                job=job,
+                job_id=job_id,
+                logger=logger,
+                resources=resources,
+                ts_adapter=ts_adapter,
+                uow=uow,
+            )
+            logger.log_info(
+                value_objects.LogMessage(f"Finished running [{job.job_name.value}].")
+            )
+            return result
 
 
 def _run_jobs_with_tests(
@@ -108,7 +94,9 @@ def _run_jobs_with_tests(
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.JobLoggingService,
-    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
+    resources: typing.Mapping[
+        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+    ],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
 ) -> job_result.JobResult:
@@ -198,7 +186,9 @@ def _run_with_retry(
     job: job_spec.JobSpec,
     logger: job_logging_service.JobLoggingService,
     max_retries: int,
-    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
+    resources: typing.Mapping[
+        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+    ],
     retries_so_far: int,
     uow: unit_of_work.UnitOfWork,
 ) -> typing.Tuple[value_objects.Result, int]:
@@ -242,7 +232,9 @@ def _run(
     job: job_spec.JobSpec,
     logger: job_logging_service.JobLoggingService,
     uow: unit_of_work.UnitOfWork,
-    resources: typing.Mapping[value_objects.ResourceName, shared_resource.SharedResource[typing.Any]],
+    resources: typing.Mapping[
+        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+    ],
 ) -> value_objects.Result:
     if isinstance(job, job_spec.AdminJobSpec):
         return job.run(uow=uow, logger=logger) or value_objects.Result.success()

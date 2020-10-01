@@ -11,6 +11,17 @@ class LimeETLException(Exception):
         super().__init__(message)
 
 
+class BatchNotFound(LimeETLException):
+    def __init__(
+        self,
+        batch_id: value_objects.UniqueId,
+        /,
+    ):
+        self.batch_id = batch_id
+        msg = f"The batch [{batch_id.value}] was not found"
+        super().__init__(msg)
+
+
 class DependencyErrors(LimeETLException):
     def __init__(
         self,
@@ -18,7 +29,6 @@ class DependencyErrors(LimeETLException):
         /,
     ):
         self.dependency_errors = dependency_errors
-
         msg = "; ".join(str(e) for e in sorted(dependency_errors))
         super().__init__(msg)
 

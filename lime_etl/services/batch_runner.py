@@ -92,16 +92,15 @@ def run(
         )
     except Exception as e:
         batch_logger.log_error(value_objects.LogMessage(str(e)))
-        now = ts_adapter.now()
-        end_time = datetime.datetime.now()
-        execution_millis = int((end_time - start_time).total_seconds() * 1000)
         result = batch.Batch(
             id=batch_id,
             job_results=frozenset(),
             execution_success_or_failure=value_objects.Result.failure(str(e)),
-            execution_millis=value_objects.ExecutionMillis(execution_millis),
+            execution_millis=ts_adapter.get_elapsed_time(
+                value_objects.Timestamp(start_time)
+            ),
             running=value_objects.Flag(False),
-            ts=now,
+            ts=ts_adapter.now(),
         )
         with uow:
             uow.batches.update(result)
@@ -203,6 +202,12 @@ def _run_batch(
         for job in jobs
         if isinstance(job, job_spec.ETLJobSpec)
     }
+    for job in jobs:
+        if isinstance(job, job_spec.ETLJobSpec):
+            _check_resources_needed_for_job_are_available(
+                job=job, resource_names=resource_managers.keys()
+            )
+
     for ix, job in enumerate(jobs):
         with uow:
             last_ts = uow.batches.get_last_successful_ts_for_job(job_name=job.job_name)
@@ -221,16 +226,13 @@ def _run_batch(
                 )
                 continue
 
-        # open resources needed for job
+        batch_logger.log_info(
+            value_objects.LogMessage(f"Opening resources for job [{job.job_name}]...")
+        )
         if isinstance(job, job_spec.ETLJobSpec):
-            _check_resources_needed_for_job_are_available(
-                job=job, resource_names=resource_managers.keys()
-            )
             job_resources = {
-                resource_name: resource_manager.open()
-                for resource_name, resource_manager in job_resource_managers[
-                    job.job_name
-                ].items()
+                name: mgr.open()
+                for name, mgr in job_resource_managers[job.job_name].items()
             }
         else:
             job_resources = {}
@@ -239,19 +241,37 @@ def _run_batch(
         job_logger = job_logging_service.DefaultJobLoggingService(
             uow=uow, batch_id=batch_id, job_id=job_id
         )
-        result = job_runner.default_job_runner(
-            uow=uow,
-            job=job,
-            logger=job_logger,
-            batch_id=batch_id,
-            job_id=job_id,
-            resources=job_resources,
-            ts_adapter=ts_adapter,
-        )
-        job_results.append(result)
-        with uow:
-            uow.batches.add_job_result(result)
-            uow.commit()
+        result = None
+        try:
+            result = job_runner.default_job_runner(
+                uow=uow,
+                job=job,
+                logger=job_logger,
+                batch_id=batch_id,
+                job_id=job_id,
+                resources=job_resources,
+                ts_adapter=ts_adapter,
+            )
+        except Exception as e:
+            millis = ts_adapter.get_elapsed_time(start_ts)
+            err = value_objects.Result.failure(
+                f"An exception occurred while running [{job.job_name}]: {e}."
+            )
+            result = job_result.JobResult(
+                id=job_id,
+                batch_id=batch_id,
+                job_name=job.job_name,
+                test_results=frozenset(),
+                execution_millis=millis,
+                execution_success_or_failure=err,
+                ts=ts_adapter.now(),
+            )
+        finally:
+            assert result is not None
+            job_results.append(result)
+            with uow:
+                uow.batches.add_job_result(result)
+                uow.commit()
 
         if isinstance(job, job_spec.ETLJobSpec):
             # clean up resources no longer needed
