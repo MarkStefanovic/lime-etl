@@ -1,3 +1,4 @@
+import collections
 import datetime
 import itertools
 from typing import List, Protocol, runtime_checkable
@@ -154,19 +155,33 @@ def check_dependencies(
     }
 
 
-def _check_resources_needed_for_job_are_available(
-    job: job_spec.ETLJobSpec,
-    resource_names: typing.Iterable[value_objects.ResourceName],
+def _check_for_duplicate_job_names(
+    jobs: typing.Collection[job_spec.JobSpec], /
 ) -> None:
-    missing_resources: typing.List[value_objects.ResourceName] = []
-    for resource_name in job.resources_needed:
-        if resource_name not in resource_names:
-            missing_resources.append(resource_name)
+    job_names = [job.job_name for job in jobs]
+    duplicates = {
+        job_name: ct for job_name in job_names if (ct := job_names.count(job_name)) > 1
+    }
+    if duplicates:
+        raise exceptions.DuplicateJobNamesError(duplicates)
+
+
+def _check_for_missing_resources(
+    jobs: typing.Collection[job_spec.JobSpec],
+    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
+) -> None:
+    resource_names = {r.name for r in resources}
+    missing_resources: typing.Mapping[
+        value_objects.JobName, typing.List[value_objects.ResourceName]
+    ] = collections.defaultdict(list)
+    for job in jobs:
+        if isinstance(job, job_spec.ETLJobSpec):
+            for resource_name in job.resources_needed:
+                if resource_name not in resource_names:
+                    missing_resources[job.job_name].append(resource_name)
 
     if missing_resources:
-        raise exceptions.MissingResourceError(
-            job_name=job.job_name, missing_resources=missing_resources
-        )
+        raise exceptions.MissingResourcesError(missing_resources)
 
 
 def _is_resource_still_needed(
@@ -187,6 +202,9 @@ def _run_batch(
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
 ) -> batch.Batch:
+    _check_for_missing_resources(jobs=jobs, resources=resources)
+    _check_for_duplicate_job_names(jobs)
+
     start_ts = ts_adapter.now()
 
     job_results: List[job_result.JobResult] = []
@@ -202,11 +220,6 @@ def _run_batch(
         for job in jobs
         if isinstance(job, job_spec.ETLJobSpec)
     }
-    for job in jobs:
-        if isinstance(job, job_spec.ETLJobSpec):
-            _check_resources_needed_for_job_are_available(
-                job=job, resource_names=resource_managers.keys()
-            )
 
     for ix, job in enumerate(jobs):
         with uow:

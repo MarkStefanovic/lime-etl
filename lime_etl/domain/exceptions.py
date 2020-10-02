@@ -29,21 +29,36 @@ class DependencyErrors(LimeETLException):
         /,
     ):
         self.dependency_errors = dependency_errors
+        # noinspection PyTypeChecker
         msg = "; ".join(str(e) for e in sorted(dependency_errors))
         super().__init__(msg)
 
 
-class MissingResourceError(LimeETLException):
+class DuplicateJobNamesError(LimeETLException):
     def __init__(
         self,
-        job_name: value_objects.JobName,
-        missing_resources: typing.Collection[value_objects.ResourceName],
+        duplicate_job_counts: typing.Dict[value_objects.JobName, int],
+        /,
     ):
-        self.job_name = job_name
-        self.missing_resources = missing_resources
-        msg = (
-            f"The job [{job_name.value}] requires the following resources, which were not found: "
-            + ", ".join(f"[{r.value}]" for r in missing_resources)
-            + "."
+        self.duplicate_job_counts = duplicate_job_counts
+        dupes_msg = ", ".join(
+            f"[{job_name.value}] ({ct})" for job_name, ct in duplicate_job_counts.items()
         )
+        err_msg = f"The following job names included more than once: {dupes_msg}."
+        super().__init__(err_msg)
+
+
+class MissingResourcesError(LimeETLException):
+    def __init__(
+        self,
+        missing_resources: typing.Mapping[
+            value_objects.JobName, typing.Iterable[value_objects.ResourceName]
+        ],
+    ):
+        self.missing_resources = missing_resources
+        messages = "; ".join(
+            f"[{job_name}] is missing {', '.join(sorted(f'[{m}]' for m in missing))}"
+            for job_name, missing in missing_resources.items()
+        )
+        msg = f"The following jobs have missing resources: {messages}."
         super().__init__(msg)
