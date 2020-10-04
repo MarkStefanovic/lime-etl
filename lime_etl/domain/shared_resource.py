@@ -1,7 +1,7 @@
 import abc
 import typing
 
-from lime_etl.domain import value_objects
+from lime_etl.domain import exceptions, value_objects
 
 T = typing.TypeVar("T", covariant=True)
 
@@ -44,12 +44,12 @@ class SharedResource(abc.ABC, typing.Generic[T]):
 class ResourceManager(typing.Generic[T]):
     def __init__(self, resource: SharedResource[T], /):
         if resource is None:
-            raise ValueError(
+            raise exceptions.InvalidResource(
                 f"Expected a resource with a close and open method, but got None."
             )
 
         if not hasattr(resource, "open") or not hasattr(resource, "close"):
-            raise ValueError(
+            raise exceptions.InvalidResource(
                 f"Expected a resource with a close and open method, but got {resource!r}."
             )
 

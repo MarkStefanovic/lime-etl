@@ -42,10 +42,34 @@ class DuplicateJobNamesError(LimeETLException):
     ):
         self.duplicate_job_counts = duplicate_job_counts
         dupes_msg = ", ".join(
-            f"[{job_name.value}] ({ct})" for job_name, ct in duplicate_job_counts.items()
+            f"[{job_name.value}] ({ct})"
+            for job_name, ct in duplicate_job_counts.items()
         )
         err_msg = f"The following job names included more than once: {dupes_msg}."
         super().__init__(err_msg)
+
+
+class InvalidBatch(LimeETLException):
+    def __init__(
+        self,
+        message: str,
+        /,
+    ):
+        super().__init__(message)
+
+
+class InvalidJobSpec(LimeETLException):
+    def __init__(
+        self,
+        message: str,
+        /,
+    ):
+        super().__init__(message)
+
+
+class InvalidResource(LimeETLException):
+    def __init__(self, message: str, /):
+        super().__init__(message)
 
 
 class MissingResourcesError(LimeETLException):

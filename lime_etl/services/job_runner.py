@@ -244,6 +244,6 @@ def _run(
             or value_objects.Result.success()
         )
     else:
-        raise ValueError(
+        raise exceptions.InvalidJobSpec(
             f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."
         )

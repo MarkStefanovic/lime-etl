@@ -5,7 +5,7 @@ import dataclasses
 
 import typing
 
-from lime_etl.domain import job_result, value_objects
+from lime_etl.domain import exceptions, job_result, value_objects
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -54,14 +54,26 @@ class Batch:
     def __post_init__(self) -> None:
         if self.running.value is True:
             if self.execution_success_or_failure:
-                raise ValueError("If a batch is running, we cannot know whether the run was successful or not.")
+                raise exceptions.InvalidBatch(
+                    f"If a batch is still running, execution_success_or_failure should be None, "
+                    f"but got {self.execution_success_or_failure!r}."
+                )
             if self.execution_millis:
-                raise ValueError("If a batch is running, we cannot know how many milliseconds it took to run.")
+                raise exceptions.InvalidBatch(
+                    f"If a batch is running, execution_millis should be None, but got "
+                    f"{self.execution_millis!r}."
+                )
         else:
             if self.execution_success_or_failure is None:
-                raise ValueError("If a bach has finished, then we should know the result.")
+                raise exceptions.InvalidBatch(
+                    "If a bach has finished, then we should know the result, but "
+                    "execution_success_or_failure is None."
+                )
             if self.execution_millis is None:
-                raise ValueError("If a batch has finished, then we should know how many milliseconds it took to run.")
+                raise exceptions.InvalidBatch(
+                    "If a batch has finished, then we should know how many milliseconds it took to "
+                    "run, but execution_millis is None."
+                )
 
     @property
     def job_names(self) -> typing.Set[value_objects.JobName]:
