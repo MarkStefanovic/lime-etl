@@ -18,10 +18,6 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         return []
 
     @property
-    def flex_pct(self) -> value_objects.FlexPercent:
-        return value_objects.FlexPercent(0)
-
-    @property
     def max_retries(self) -> value_objects.MaxRetries:
         return value_objects.MaxRetries(1)
 
@@ -47,9 +43,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
             uow.commit()
 
         logger.log_info(
-            message=value_objects.LogMessage(
-                f"Deleted batch log entries older than {self._days_to_keep.value} days old."
-            )
+            f"Deleted batch log entries older than {self._days_to_keep.value} days old."
         )
 
         with uow:
@@ -57,9 +51,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
             uow.commit()
 
         logger.log_info(
-            message=value_objects.LogMessage(
-                f"Deleted job log entries older than {self._days_to_keep.value} days old."
-            )
+            f"Deleted job log entries older than {self._days_to_keep.value} days old."
         )
 
         with uow:
@@ -67,9 +59,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
             uow.commit()
 
         logger.log_info(
-            message=value_objects.LogMessage(
-                f"Deleted batch results older than {self._days_to_keep.value} days old."
-            )
+            f"Deleted batch results older than {self._days_to_keep.value} days old."
         )
 
         return value_objects.Result.success()

@@ -28,6 +28,7 @@ class JobRunner(typing.Protocol):
         ],
         ts_adapter: timestamp_adapter.TimestampAdapter,
         uow: unit_of_work.UnitOfWork,
+        skip_tests: bool,
     ) -> job_result.JobResult:
         ...
 
@@ -43,8 +44,9 @@ def default_job_runner(
     ],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
+    skip_tests: bool,
 ) -> job_result.JobResult:
-    logger.log_info(value_objects.LogMessage(f"Starting [{job.job_name.value}]..."))
+    logger.log_info(f"Starting [{job.job_name.value}]...")
     with uow:
         current_batch = uow.batches.get_batch_by_id(batch_id)
 
@@ -81,10 +83,9 @@ def default_job_runner(
                 resources=resources,
                 ts_adapter=ts_adapter,
                 uow=uow,
+                skip_tests=skip_tests,
             )
-            logger.log_info(
-                value_objects.LogMessage(f"Finished running [{job.job_name.value}].")
-            )
+            logger.log_info(f"Finished running [{job.job_name.value}].")
             return result
 
 
@@ -99,6 +100,7 @@ def _run_jobs_with_tests(
     ],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
+    skip_tests: bool,
 ) -> job_result.JobResult:
     result, execution_millis = _run_with_retry(
         job=job,
@@ -109,64 +111,57 @@ def _run_jobs_with_tests(
         uow=uow,
     )
     if result.is_success:
-        logger.log_info(
-            value_objects.LogMessage(f"[{job.job_name.value}] finished successfully.")
-        )
-        logger.log_info(
-            value_objects.LogMessage(f"Running the tests for [{job.job_name.value}]...")
-        )
-        test_start_time = datetime.datetime.now()
-        if isinstance(job, job_spec.AdminJobSpec):
-            test_results = job.test(logger=logger, uow=uow)
-        elif isinstance(job, job_spec.ETLJobSpec):
-            test_results = job.test(logger=logger, resources=resources)
-        else:
-            raise ValueError(
-                f"Expected either an AdminJobSpec or an ETLJobSpec, but got {job!r}"
-            )
-        test_execution_millis = int(
-            (datetime.datetime.now() - test_start_time).total_seconds() * 1000
-        )
-
-        if test_results:
-            tests_passed = sum(
-                1 for test_result in test_results if test_result.test_passed
-            )
-            tests_failed = sum(
-                1 for test_result in test_results if test_result.test_failed
-            )
-            logger.log_info(
-                value_objects.LogMessage(
-                    f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
-                )
-            )
+        logger.log_info(f"[{job.job_name.value}] finished successfully.")
+        if skip_tests:
             full_test_results: typing.FrozenSet[
                 job_test_result.JobTestResult
-            ] = frozenset(
-                job_test_result.JobTestResult(
-                    id=value_objects.UniqueId.generate(),
-                    job_id=job_id,
-                    test_name=test_result.test_name,
-                    test_success_or_failure=test_result.test_success_or_failure,
-                    execution_millis=value_objects.ExecutionMillis(
-                        test_execution_millis
-                    ),
-                    execution_success_or_failure=value_objects.Result.success(),
-                    ts=ts_adapter.now(),
-                )
-                for test_result in test_results
-            )
+            ] = frozenset()
         else:
-            logger.log_info(
-                value_objects.LogMessage("The job test method returned no results.")
+            logger.log_info(f"Running the tests for [{job.job_name.value}]...")
+            test_start_time = datetime.datetime.now()
+            if isinstance(job, job_spec.AdminJobSpec):
+                test_results = job.test(logger=logger, uow=uow)
+            elif isinstance(job, job_spec.ETLJobSpec):
+                test_results = job.test(logger=logger, resources=resources)
+            else:
+                raise ValueError(
+                    f"Expected either an AdminJobSpec or an ETLJobSpec, but got {job!r}"
+                )
+            test_execution_millis = int(
+                (datetime.datetime.now() - test_start_time).total_seconds() * 1000
             )
-            full_test_results = frozenset()
+
+            if test_results:
+                tests_passed = sum(
+                    1 for test_result in test_results if test_result.test_passed
+                )
+                tests_failed = sum(
+                    1 for test_result in test_results if test_result.test_failed
+                )
+                logger.log_info(
+                    f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
+                )
+                full_test_results = frozenset(
+                    job_test_result.JobTestResult(
+                        id=value_objects.UniqueId.generate(),
+                        job_id=job_id,
+                        test_name=test_result.test_name,
+                        test_success_or_failure=test_result.test_success_or_failure,
+                        execution_millis=value_objects.ExecutionMillis(
+                            test_execution_millis
+                        ),
+                        execution_success_or_failure=value_objects.Result.success(),
+                        ts=ts_adapter.now(),
+                    )
+                    for test_result in test_results
+                )
+            else:
+                logger.log_info("The job test method returned no results.")
+                full_test_results = frozenset()
     else:
         logger.log_info(
-            value_objects.LogMessage(
-                f"An exception occurred while running [{job.job_name.value}]: "
-                f"{result.failure_message}."
-            )
+            f"An exception occurred while running [{job.job_name.value}]: "
+            f"{result.failure_message}."
         )
         full_test_results = frozenset()
 
@@ -204,13 +199,9 @@ def _run_with_retry(
         end_time = datetime.datetime.now()
         return result, int((end_time - start_time).total_seconds() * 1000)
     except:
-        logger.log_error(value_objects.LogMessage(traceback.format_exc(10)))
+        logger.log_error(traceback.format_exc(10))
         if max_retries > retries_so_far:
-            logger.log_info(
-                value_objects.LogMessage(
-                    f"Running retry {retries_so_far} of {max_retries}..."
-                )
-            )
+            logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
             return _run_with_retry(
                 job=job,
                 logger=logger,
@@ -221,9 +212,7 @@ def _run_with_retry(
             )
         else:
             logger.log_info(
-                value_objects.LogMessage(
-                    f"[{job.job_name.value}] failed after {max_retries} retries."
-                )
+                f"[{job.job_name.value}] failed after {max_retries} retries."
             )
             raise
 

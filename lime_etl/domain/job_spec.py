@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import typing
 
-from lime_etl.domain import job_test_result, shared_resource, value_objects
+from lime_etl.domain import job_test_result, value_objects
 from lime_etl.services import job_logging_service, unit_of_work
 
 

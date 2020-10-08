@@ -23,8 +23,9 @@ def run(
     admin_jobs: typing.Iterable[job_spec.JobSpec] = frozenset(DEFAULT_ADMIN_JOBS),
     schema: typing.Optional[str] = None,
     ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
-    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
-    email_adapter: typing.Optional[email_adapter.EmailAdapter] = None
+    resources: typing.Collection[shared_resource.SharedResource[typing.Any]] = frozenset(),
+    email_adapter: typing.Optional[email_adapter.EmailAdapter] = None,
+    skip_tests: bool = False,
 ) -> batch_delta.BatchDelta:
     if schema:
         orm.set_schema(schema=value_objects.SchemaName(schema))
@@ -42,6 +43,7 @@ def run(
         jobs=list(itertools.chain(admin_jobs, etl_jobs)),
         resources=resources,
         ts_adapter=ts_adapter,
+        skip_tests=skip_tests,
     )
     if email_adapter:
         email_adapter.send(result=result)

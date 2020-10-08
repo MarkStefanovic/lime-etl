@@ -7,17 +7,11 @@ from lime_etl.services import unit_of_work
 
 class JobLoggingService(abc.ABC):
     @abc.abstractmethod
-    def log_error(
-        self,
-        message: value_objects.LogMessage,
-    ) -> None:
+    def log_error(self, message: str, /) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def log_info(
-        self,
-        message: value_objects.LogMessage,
-    ) -> None:
+    def log_info(self, message: str, /) -> None:
         raise NotImplementedError
 
 
@@ -34,11 +28,7 @@ class DefaultJobLoggingService(JobLoggingService):
 
         super().__init__()
 
-    def _log(
-        self,
-        level: value_objects.LogLevel,
-        message: value_objects.LogMessage,
-    ) -> None:
+    def _log(self, level: value_objects.LogLevel, message: str) -> None:
         with self._uow as uow:
             ts = uow.ts_adapter.now()
             log_entry = job_log_entry.JobLogEntry(
@@ -46,7 +36,7 @@ class DefaultJobLoggingService(JobLoggingService):
                 batch_id=self.batch_id,
                 job_id=self.job_id,
                 log_level=level,
-                message=message,
+                message=value_objects.LogMessage(message),
                 ts=ts,
             )
             print(log_entry)
@@ -54,19 +44,13 @@ class DefaultJobLoggingService(JobLoggingService):
             uow.commit()
             return None
 
-    def log_error(
-        self,
-        message: value_objects.LogMessage,
-    ) -> None:
+    def log_error(self, message: str, /) -> None:
         return self._log(
             level=value_objects.LogLevel.error(),
             message=message,
         )
 
-    def log_info(
-        self,
-        message: value_objects.LogMessage,
-    ) -> None:
+    def log_info(self, message: str, /) -> None:
         return self._log(
             level=value_objects.LogLevel.info(),
             message=message,
@@ -77,16 +61,10 @@ class ConsoleJobLoggingService(JobLoggingService):
     def __init__(self) -> None:
         super().__init__()
 
-    def log_error(
-        self,
-        message: value_objects.LogMessage,
-    ) -> None:
-        print(f"ERROR: {message.value}")
+    def log_error(self, message: str, /) -> None:
+        print(f"ERROR: {message}")
         return None
 
-    def log_info(
-        self,
-        message: value_objects.LogMessage,
-    ) -> None:
-        print(f"INFO: {message.value}")
+    def log_info(self, message: str, /) -> None:
+        print(f"INFO: {message}")
         return None

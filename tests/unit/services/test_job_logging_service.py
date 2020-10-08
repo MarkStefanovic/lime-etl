@@ -29,9 +29,7 @@ def test_job_logger_log_error(
     job_logger: job_logging_service.JobLoggingService,
     job_id: value_objects.UniqueId,
 ) -> None:
-    job_logger.log_error(
-        message=value_objects.LogMessage("Test Message")
-    )
+    job_logger.log_error("Test Message")
     assert dummy_uow.committed
     first_entry = dummy_job_log_entry_repository.job_log[0]
     assert first_entry.log_level.value == value_objects.LogLevelOption.Error
@@ -44,9 +42,7 @@ def test_job_logger_log_info(
     job_logger: job_logging_service.DefaultJobLoggingService,
     job_id: value_objects.UniqueId,
 ) -> None:
-    job_logger.log_info(
-        message=value_objects.LogMessage("This is a test info message."),
-    )
+    job_logger.log_info("This is a test info message.")
     assert dummy_uow.committed
     first_entry = dummy_job_log_entry_repository.job_log[0]
     assert first_entry.log_level.value == value_objects.LogLevelOption.Info

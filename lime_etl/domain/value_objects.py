@@ -329,25 +329,6 @@ class MaxRetries(_PositiveInt):
     ...
 
 
-class FlexPercent(ValueObject):
-    def __init__(self, value: float, /):
-        if value is None:
-            raise ValueError(
-                f"{self.__class__.__name__} value is required, but got None."
-            )
-        elif isinstance(value, float):
-            if value < 0 or value > 1:
-                raise ValueError(
-                    f"{self.__class__.__name__} value must be between 0 and 1, but got {value!r}."
-                )
-        else:
-            raise TypeError(
-                f"{self.__class__.__name__} expects a float, but got {value!r}"
-            )
-
-        super().__init__(value)
-
-
 class Timestamp(ValueObject):
     def __init__(self, value: datetime.datetime, /):
         if value is None:

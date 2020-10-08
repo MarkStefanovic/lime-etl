@@ -35,10 +35,6 @@ class HelloWorldJob(job_spec.ETLJobSpec):
         return self._dependencies
 
     @property
-    def flex_pct(self) -> value_objects.FlexPercent:
-        return value_objects.FlexPercent(0)
-
-    @property
     def job_name(self) -> value_objects.JobName:
         return value_objects.JobName(self._job_name)
 

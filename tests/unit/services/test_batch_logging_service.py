@@ -21,9 +21,7 @@ def test_batch_logger_log_error(
     dummy_uow: conftest.DummyUnitOfWork,
     batch_logger: batch_logging_service.BatchLoggingService,
 ) -> None:
-    batch_logger.log_error(
-        message=value_objects.LogMessage("Test Message")
-    )
+    batch_logger.log_error("Test Message")
     assert dummy_uow.committed
     first_entry = dummy_batch_log_entry_repository.batch_log[0]
     assert first_entry.log_level.value == value_objects.LogLevelOption.Error
@@ -35,9 +33,7 @@ def test_batch_logger_log_info(
     dummy_uow: conftest.DummyUnitOfWork,
     batch_logger: batch_logging_service.BatchLoggingService,
 ) -> None:
-    batch_logger.log_info(
-        message=value_objects.LogMessage("This is a test info message.")
-    )
+    batch_logger.log_info("This is a test info message.")
     assert dummy_uow.committed
     first_entry = dummy_batch_log_entry_repository.batch_log[0]
     assert first_entry.log_level.value == value_objects.LogLevelOption.Info

@@ -2,7 +2,7 @@ from setuptools import setup  # type: ignore
 
 setup(
     name="lime-etl",
-    version="0.1.0",
+    version="0.1.11",
     packages=[
         "lime_etl",
     ],

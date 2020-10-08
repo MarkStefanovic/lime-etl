@@ -23,27 +23,13 @@ from lime_etl.services import (
 from lime_etl.services import job_logging_service, unit_of_work
 
 
-@runtime_checkable
-class BatchRunner(Protocol):
-    def __call__(
-        self,
-        *,
-        batch_id: value_objects.UniqueId,
-        batch_logger: batch_logging_service.BatchLoggingService,
-        jobs: typing.Collection[job_spec.JobSpec],
-        resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
-        ts_adapter: timestamp_adapter.TimestampAdapter,
-        uow: unit_of_work.UnitOfWork,
-    ) -> batch.Batch:
-        ...
-
-
 def run(
     *,
     jobs: typing.Collection[job_spec.JobSpec],
     resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
+    skip_tests: bool,
 ) -> batch_delta.BatchDelta:
     batch_id = value_objects.UniqueId.generate()
     batch_logger = batch_logging_service.DefaultBatchLoggingService(
@@ -68,9 +54,7 @@ def run(
             uow.batches.add(new_batch)
             uow.commit()
 
-        batch_logger.log_info(
-            value_objects.LogMessage(f"Staring batch [{batch_id.value}]...")
-        )
+        batch_logger.log_info(f"Staring batch [{batch_id.value}]...")
         result = _run_batch(
             batch_logger=batch_logger,
             uow=uow,
@@ -78,21 +62,20 @@ def run(
             jobs=jobs,
             resources=resources,
             ts_adapter=ts_adapter,
+            skip_tests=skip_tests,
         )
 
         with uow:
             uow.batches.update(result)
             uow.commit()
 
-        batch_logger.log_info(
-            value_objects.LogMessage(f"Batch [{batch_id.value}] finished.")
-        )
+        batch_logger.log_info(f"Batch [{batch_id.value}] finished.")
         return batch_delta.BatchDelta(
             current_results=result,
             previous_results=previous_results,
         )
     except Exception as e:
-        batch_logger.log_error(value_objects.LogMessage(str(e)))
+        batch_logger.log_error(str(e))
         result = batch.Batch(
             id=batch_id,
             job_results=frozenset(),
@@ -201,6 +184,7 @@ def _run_batch(
     resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
     ts_adapter: timestamp_adapter.TimestampAdapter,
     uow: unit_of_work.UnitOfWork,
+    skip_tests: bool,
 ) -> batch.Batch:
     _check_for_missing_resources(jobs=jobs, resources=resources)
     _check_for_duplicate_job_names(jobs)
@@ -231,17 +215,13 @@ def _run_batch(
             ).total_seconds()
             if seconds_since_last_refresh < job.seconds_between_refreshes.value:
                 batch_logger.log_info(
-                    value_objects.LogMessage(
-                        f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
-                        f"ago and it is set to refresh every {job.seconds_between_refreshes.value} seconds, "
-                        f"so there is no need to refresh again."
-                    )
+                    f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
+                    f"ago and it is set to refresh every {job.seconds_between_refreshes.value} seconds, "
+                    f"so there is no need to refresh again."
                 )
                 continue
 
-        batch_logger.log_info(
-            value_objects.LogMessage(f"Opening resources for job [{job.job_name}]...")
-        )
+        batch_logger.log_info(f"Opening resources for job [{job.job_name}]...")
         if isinstance(job, job_spec.ETLJobSpec):
             job_resources = {
                 name: mgr.open()
@@ -264,6 +244,7 @@ def _run_batch(
                 job_id=job_id,
                 resources=job_resources,
                 ts_adapter=ts_adapter,
+                skip_tests=skip_tests,
             )
         except Exception as e:
             millis = ts_adapter.get_elapsed_time(start_ts)

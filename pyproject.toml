@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lime-etl"
-version = "0.1.10"
+version = "0.1.11"
 description = "Simple ETL job runner"
 authors = ["Mark Stefanovic"]
 license = "MIT"
