@@ -23,6 +23,16 @@ class JobSpec(abc.ABC):
     def max_retries(self) -> value_objects.MaxRetries:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def on_execution_error(self, error_message: str) -> typing.Optional[JobSpec]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def on_test_failure(
+        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+    ) -> typing.Optional[JobSpec]:
+        raise NotImplementedError
+
     @property
     @abc.abstractmethod
     def seconds_between_refreshes(self) -> value_objects.SecondsBetweenRefreshes:
@@ -35,6 +45,16 @@ class JobSpec(abc.ABC):
 
 
 class AdminJobSpec(JobSpec):
+    @abc.abstractmethod
+    def on_execution_error(self, error_message: str) -> typing.Optional[AdminJobSpec]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def on_test_failure(
+        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+    ) -> typing.Optional[AdminJobSpec]:
+        raise NotImplementedError
+
     @abc.abstractmethod
     def run(
         self,
@@ -53,6 +73,16 @@ class AdminJobSpec(JobSpec):
 
 
 class ETLJobSpec(JobSpec):
+    @abc.abstractmethod
+    def on_execution_error(self, error_message: str) -> typing.Optional[ETLJobSpec]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def on_test_failure(
+        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+    ) -> typing.Optional[ETLJobSpec]:
+        raise NotImplementedError
+
     @property
     @abc.abstractmethod
     def resources_needed(

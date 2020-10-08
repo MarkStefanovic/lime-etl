@@ -11,7 +11,7 @@ from lime_etl.domain import (
     shared_resource,
     value_objects,
 )
-from lime_etl import runner
+from lime_etl import ETLJobSpec, runner
 from lime_etl.services import job_logging_service
 
 
@@ -37,6 +37,14 @@ class HelloWorldJob(job_spec.ETLJobSpec):
     @property
     def job_name(self) -> value_objects.JobName:
         return value_objects.JobName(self._job_name)
+
+    def on_execution_error(self, error_message: str) -> typing.Optional[ETLJobSpec]:
+        return None
+
+    def on_test_failure(
+        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+    ) -> typing.Optional[ETLJobSpec]:
+        return None
 
     @property
     def seconds_between_refreshes(self) -> value_objects.SecondsBetweenRefreshes:

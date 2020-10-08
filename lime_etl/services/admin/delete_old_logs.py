@@ -21,6 +21,16 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
     def max_retries(self) -> value_objects.MaxRetries:
         return value_objects.MaxRetries(1)
 
+    def on_execution_error(
+        self, error_message: str
+    ) -> typing.Optional[job_spec.AdminJobSpec]:
+        return None
+
+    def on_test_failure(
+        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+    ) -> typing.Optional[job_spec.AdminJobSpec]:
+        return None
+
     @property
     def job_name(self) -> value_objects.JobName:
         return value_objects.JobName("delete_old_logs")

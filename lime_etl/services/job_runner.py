@@ -33,7 +33,122 @@ class JobRunner(typing.Protocol):
         ...
 
 
+# def default_job_runner(
+#     *,
+#     batch_id: value_objects.UniqueId,
+#     job: job_spec.JobSpec,
+#     job_id: value_objects.UniqueId,
+#     logger: job_logging_service.JobLoggingService,
+#     resources: typing.Mapping[
+#         value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+#     ],
+#     ts_adapter: timestamp_adapter.TimestampAdapter,
+#     uow: unit_of_work.UnitOfWork,
+#     skip_tests: bool,
+# ) -> job_result.JobResult:
+#     logger.log_info(f"Starting [{job.job_name.value}]...")
+#     with uow:
+#         current_batch = uow.batches.get_batch_by_id(batch_id)
+#
+#     if current_batch is None:
+#         raise exceptions.BatchNotFound(batch_id)
+#     else:
+#         dep_exceptions = {
+#             jr.job_name
+#             for jr in current_batch.job_results
+#             if jr.job_name in job.dependencies
+#             and jr.execution_success_or_failure.is_failure
+#         }
+#         dep_test_failures = {
+#             jr.job_name
+#             for jr in current_batch.job_results
+#             if jr.job_name in job.dependencies and jr.is_broken
+#         }
+#         if dep_exceptions and dep_test_failures:
+#             errs = ", ".join(sorted(dep_exceptions))  # type: ignore
+#             test_failures = ", ".join(sorted(dep_test_failures))  # type: ignore
+#             raise Exception(
+#                 f"The following dependencies failed to execute: {errs} "
+#                 f"and the following jobs had test failures: {test_failures}"
+#             )
+#         elif dep_exceptions:
+#             errs = ", ".join(sorted(dep_exceptions))  # type: ignore
+#             raise Exception(f"The following dependencies failed to execute: {errs}")
+#         else:
+#             result = _run_jobs_with_tests(
+#                 batch_id=batch_id,
+#                 job=job,
+#                 job_id=job_id,
+#                 logger=logger,
+#                 resources=resources,
+#                 ts_adapter=ts_adapter,
+#                 uow=uow,
+#                 skip_tests=skip_tests,
+#             )
+#             logger.log_info(f"Finished running [{job.job_name.value}].")
+#             return result
+
+
 def default_job_runner(
+    *,
+    batch_id: value_objects.UniqueId,
+    job: job_spec.JobSpec,
+    job_id: value_objects.UniqueId,
+    logger: job_logging_service.JobLoggingService,
+    resources: typing.Mapping[
+        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
+    ],
+    ts_adapter: timestamp_adapter.TimestampAdapter,
+    uow: unit_of_work.UnitOfWork,
+    skip_tests: bool,
+) -> job_result.JobResult:
+    result = _run_job_pre_handlers(
+        batch_id=batch_id,
+        job=job,
+        job_id=job_id,
+        logger=logger,
+        resources=resources,
+        ts_adapter=ts_adapter,
+        uow=uow,
+        skip_tests=skip_tests,
+    )
+    if result.execution_success_or_failure.is_failure:
+        new_job = job.on_execution_error(
+            result.execution_success_or_failure.failure_message
+        )
+        if new_job:
+            return default_job_runner(
+                batch_id=batch_id,
+                job=new_job,
+                job_id=job_id,
+                logger=logger,
+                resources=resources,
+                ts_adapter=ts_adapter,
+                uow=uow,
+                skip_tests=skip_tests,
+            )
+        else:
+            return result
+    elif any(test.test_failed for test in result.test_results):
+        new_job = job.on_test_failure(result.test_results)
+        if new_job:
+            return default_job_runner(
+                batch_id=batch_id,
+                job=new_job,
+                job_id=job_id,
+                logger=logger,
+                resources=resources,
+                ts_adapter=ts_adapter,
+                uow=uow,
+                skip_tests=skip_tests,
+            )
+        else:
+            return result
+    else:
+        return result
+
+
+def _run_job_pre_handlers(
     *,
     batch_id: value_objects.UniqueId,
     job: job_spec.JobSpec,
