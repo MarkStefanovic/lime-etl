@@ -64,7 +64,7 @@ class SqlAlchemyBatchLogRepository(BatchLogRepository):
     def get_latest(self) -> batch_log_entry.BatchLogEntry:
         dto: batch_log_entry.BatchLogEntryDTO = (
             self._session.query(batch_log_entry.BatchLogEntryDTO)
-            .order_by(sa.desc(batch_log_entry.BatchLogEntryDTO.ts))
+            .order_by(sa.desc(batch_log_entry.BatchLogEntryDTO.ts))  # type: ignore
             .first()
         )
         return dto.to_domain()

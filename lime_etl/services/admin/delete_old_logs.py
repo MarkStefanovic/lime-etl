@@ -65,7 +65,7 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
         )
 
         with uow:
-            uow.batches.delete_old_entries(days_to_keep=self._days_to_keep)
+            uow.batches.delete_old_entries(self._days_to_keep)
             uow.commit()
 
         logger.log_info(

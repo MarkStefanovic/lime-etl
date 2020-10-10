@@ -33,62 +33,6 @@ class JobRunner(typing.Protocol):
         ...
 
 
-# def default_job_runner(
-#     *,
-#     batch_id: value_objects.UniqueId,
-#     job: job_spec.JobSpec,
-#     job_id: value_objects.UniqueId,
-#     logger: job_logging_service.JobLoggingService,
-#     resources: typing.Mapping[
-#         value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-#     ],
-#     ts_adapter: timestamp_adapter.TimestampAdapter,
-#     uow: unit_of_work.UnitOfWork,
-#     skip_tests: bool,
-# ) -> job_result.JobResult:
-#     logger.log_info(f"Starting [{job.job_name.value}]...")
-#     with uow:
-#         current_batch = uow.batches.get_batch_by_id(batch_id)
-#
-#     if current_batch is None:
-#         raise exceptions.BatchNotFound(batch_id)
-#     else:
-#         dep_exceptions = {
-#             jr.job_name
-#             for jr in current_batch.job_results
-#             if jr.job_name in job.dependencies
-#             and jr.execution_success_or_failure.is_failure
-#         }
-#         dep_test_failures = {
-#             jr.job_name
-#             for jr in current_batch.job_results
-#             if jr.job_name in job.dependencies and jr.is_broken
-#         }
-#         if dep_exceptions and dep_test_failures:
-#             errs = ", ".join(sorted(dep_exceptions))  # type: ignore
-#             test_failures = ", ".join(sorted(dep_test_failures))  # type: ignore
-#             raise Exception(
-#                 f"The following dependencies failed to execute: {errs} "
-#                 f"and the following jobs had test failures: {test_failures}"
-#             )
-#         elif dep_exceptions:
-#             errs = ", ".join(sorted(dep_exceptions))  # type: ignore
-#             raise Exception(f"The following dependencies failed to execute: {errs}")
-#         else:
-#             result = _run_jobs_with_tests(
-#                 batch_id=batch_id,
-#                 job=job,
-#                 job_id=job_id,
-#                 logger=logger,
-#                 resources=resources,
-#                 ts_adapter=ts_adapter,
-#                 uow=uow,
-#                 skip_tests=skip_tests,
-#             )
-#             logger.log_info(f"Finished running [{job.job_name.value}].")
-#             return result
-
-
 def default_job_runner(
     *,
     batch_id: value_objects.UniqueId,
@@ -112,6 +56,7 @@ def default_job_runner(
         uow=uow,
         skip_tests=skip_tests,
     )
+    assert result.execution_success_or_failure is not None
     if result.execution_success_or_failure.is_failure:
         new_job = job.on_execution_error(
             result.execution_success_or_failure.failure_message
@@ -172,12 +117,13 @@ def _run_job_pre_handlers(
             jr.job_name
             for jr in current_batch.job_results
             if jr.job_name in job.dependencies
+            and jr.execution_success_or_failure is not None
             and jr.execution_success_or_failure.is_failure
         }
         dep_test_failures = {
             jr.job_name
             for jr in current_batch.job_results
-            if jr.job_name in job.dependencies and jr.is_broken
+            if jr.job_name in job.dependencies and jr.tests_failed
         }
         if dep_exceptions and dep_test_failures:
             errs = ", ".join(sorted(dep_exceptions))  # type: ignore
@@ -288,6 +234,7 @@ def _run_jobs_with_tests(
         test_results=full_test_results,
         execution_millis=value_objects.ExecutionMillis(execution_millis),
         execution_success_or_failure=value_objects.Result.success(),
+        running=value_objects.Flag(False),
         ts=ts,
     )
 

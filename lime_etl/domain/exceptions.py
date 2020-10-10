@@ -12,11 +12,7 @@ class LimeETLException(Exception):
 
 
 class BatchNotFound(LimeETLException):
-    def __init__(
-        self,
-        batch_id: value_objects.UniqueId,
-        /,
-    ):
+    def __init__(self, batch_id: value_objects.UniqueId, /):
         self.batch_id = batch_id
         msg = f"The batch [{batch_id.value}] was not found"
         super().__init__(msg)
@@ -36,9 +32,7 @@ class DependencyErrors(LimeETLException):
 
 class DuplicateJobNamesError(LimeETLException):
     def __init__(
-        self,
-        duplicate_job_counts: typing.Dict[value_objects.JobName, int],
-        /,
+        self, duplicate_job_counts: typing.Dict[value_objects.JobName, int], /
     ):
         self.duplicate_job_counts = duplicate_job_counts
         dupes_msg = ", ".join(
@@ -50,20 +44,17 @@ class DuplicateJobNamesError(LimeETLException):
 
 
 class InvalidBatch(LimeETLException):
-    def __init__(
-        self,
-        message: str,
-        /,
-    ):
+    def __init__(self, message: str, /):
+        super().__init__(message)
+
+
+class InvalidJobResult(LimeETLException):
+    def __init__(self, message: str, /):
         super().__init__(message)
 
 
 class InvalidJobSpec(LimeETLException):
-    def __init__(
-        self,
-        message: str,
-        /,
-    ):
+    def __init__(self, message: str, /):
         super().__init__(message)
 
 

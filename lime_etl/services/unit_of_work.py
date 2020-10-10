@@ -9,6 +9,7 @@ from lime_etl.adapters import (
     batch_log_repository,
     batch_repository,
     email_adapter,
+    job_repository,
     job_log_repository,
     timestamp_adapter,
 )
@@ -17,6 +18,7 @@ from lime_etl.adapters import (
 class UnitOfWork(abc.ABC):
     ts_adapter: timestamp_adapter.TimestampAdapter
     batches: batch_repository.BatchRepository
+    jobs: job_repository.JobRepository
     batch_log: batch_log_repository.BatchLogRepository
     job_log: job_log_repository.JobLogRepository
     emailer: email_adapter.EmailAdapter
@@ -44,6 +46,10 @@ class DefaultUnitOfWork(UnitOfWork):
     def __enter__(self) -> UnitOfWork:
         self._session = self._session_factory()
         self.batches = batch_repository.SqlAlchemyBatchRepository(
+            session=self._session,
+            ts_adapter=self.ts_adapter,
+        )
+        self.jobs = job_repository.SqlAlchemyJobRepository(
             session=self._session,
             ts_adapter=self.ts_adapter,
         )

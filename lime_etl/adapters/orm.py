@@ -10,7 +10,7 @@ from sqlalchemy import (
     Table,
 )
 from sqlalchemy.orm import mapper, relationship
-from sqlalchemy.orm.base import _is_mapped_class
+from sqlalchemy.orm.base import _is_mapped_class  # type: ignore
 
 from lime_etl.domain import (
     batch,
@@ -70,9 +70,10 @@ jobs = Table(
     Column("id", String(32), primary_key=True),
     Column("batch_id", ForeignKey("batches.id")),
     Column("job_name", String(200), nullable=False),
-    Column("execution_millis", Integer, nullable=False),
-    Column("execution_error_occurred", Boolean, nullable=False),
+    Column("execution_millis", Integer, nullable=True),
+    Column("execution_error_occurred", Boolean, nullable=True),
     Column("execution_error_message", String(2000), nullable=True),
+    Column("running", Boolean, nullable=False),
     Column("ts", DateTime, nullable=False),
 )
 

@@ -1,14 +1,13 @@
 import collections
 import datetime
 import itertools
-from typing import List, Protocol, runtime_checkable
-
 import typing
+from typing import List
 
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
-    batch_delta,
     batch,
+    batch_delta,
     exceptions,
     job_dependency_errors,
     job_result,
@@ -18,9 +17,10 @@ from lime_etl.domain import (
 )
 from lime_etl.services import (
     batch_logging_service,
+    job_logging_service,
     job_runner,
+    unit_of_work,
 )
-from lime_etl.services import job_logging_service, unit_of_work
 
 
 def run(
@@ -207,7 +207,7 @@ def _run_batch(
 
     for ix, job in enumerate(jobs):
         with uow:
-            last_ts = uow.batches.get_last_successful_ts_for_job(job_name=job.job_name)
+            last_ts = uow.jobs.get_last_successful_ts(job.job_name)
 
         if last_ts:
             seconds_since_last_refresh = (
@@ -221,6 +221,26 @@ def _run_batch(
                 )
                 continue
 
+        job_id = value_objects.UniqueId.generate()
+        job_logger = job_logging_service.DefaultJobLoggingService(
+            uow=uow,
+            batch_id=batch_id,
+            job_id=job_id,
+        )
+        result = job_result.JobResult(
+            id=job_id,
+            batch_id=batch_id,
+            job_name=job.job_name,
+            test_results=frozenset(),
+            execution_millis=None,
+            execution_success_or_failure=None,
+            running=value_objects.Flag(True),
+            ts=ts_adapter.now(),
+        )
+        with uow:
+            uow.jobs.add(result)
+            uow.commit()
+
         batch_logger.log_info(f"Opening resources for job [{job.job_name}]...")
         if isinstance(job, job_spec.ETLJobSpec):
             job_resources = {
@@ -230,11 +250,6 @@ def _run_batch(
         else:
             job_resources = {}
 
-        job_id = value_objects.UniqueId.generate()
-        job_logger = job_logging_service.DefaultJobLoggingService(
-            uow=uow, batch_id=batch_id, job_id=job_id
-        )
-        result = None
         try:
             result = job_runner.default_job_runner(
                 uow=uow,
@@ -258,13 +273,14 @@ def _run_batch(
                 test_results=frozenset(),
                 execution_millis=millis,
                 execution_success_or_failure=err,
-                ts=ts_adapter.now(),
+                running=value_objects.Flag(False),
+                ts=result.ts,
             )
         finally:
             assert result is not None
             job_results.append(result)
             with uow:
-                uow.batches.add_job_result(result)
+                uow.jobs.update(result)
                 uow.commit()
 
         if isinstance(job, job_spec.ETLJobSpec):
@@ -274,7 +290,8 @@ def _run_batch(
                 job.job_name
             ].items():
                 resource_needed = _is_resource_still_needed(
-                    remaining_jobs=remaining_jobs, resource_name=resource_name
+                    remaining_jobs=remaining_jobs,
+                    resource_name=resource_name,
                 )
                 if not resource_needed:
                     resource_manager.close()

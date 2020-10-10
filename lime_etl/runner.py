@@ -32,7 +32,7 @@ def run(
 
     orm.start_mappers()
     if type(engine_or_uri) is sa.engine.Engine:
-        engine = engine_or_uri
+        engine = typing.cast(sa.engine.Connectable, engine_or_uri)
     else:
         engine = sa.create_engine(engine_or_uri)
     orm.metadata.create_all(engine)

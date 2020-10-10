@@ -81,7 +81,7 @@ class Batch:
 
     @property
     def broken_jobs(self) -> typing.Set[value_objects.JobName]:
-        return {job.job_name for job in self.job_results if job.is_broken}
+        return {job.job_name for job in self.job_results if job.tests_failed}
 
     def to_dto(self) -> BatchDTO:
         results = [j.to_dto() for j in self.job_results]
