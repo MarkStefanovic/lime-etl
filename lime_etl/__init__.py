@@ -22,4 +22,4 @@ from lime_etl.services.job_logging_service import (
     JobLoggingService,
     AbstractJobLoggingService,
 )
-from lime_etl.runner import run
+from lime_etl.runner import run, run_admin

@@ -75,15 +75,13 @@ class AdminJobSpec(JobSpec):
 
 
 class ETLJobSpec(JobSpec):
-    @abc.abstractmethod
     def on_execution_error(self, error_message: str) -> typing.Optional[ETLJobSpec]:
-        raise NotImplementedError
+        return None
 
-    @abc.abstractmethod
     def on_test_failure(
         self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
     ) -> typing.Optional[ETLJobSpec]:
-        raise NotImplementedError
+        return None
 
     @property
     @abc.abstractmethod
