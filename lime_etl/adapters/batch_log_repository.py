@@ -1,70 +1,62 @@
+from __future__ import annotations
+
 import abc
 import datetime
+import typing
 
 import sqlalchemy as sa
-import sqlalchemy.orm as sao
+from lime_uow import resources
+from sqlalchemy import orm
 
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import batch_log_entry, value_objects
 
 
-class BatchLogRepository(abc.ABC):
-    @abc.abstractmethod
-    def add(
-        self, log_entry: batch_log_entry.BatchLogEntry
-    ) -> batch_log_entry.BatchLogEntry:
-        raise NotImplementedError
-
+class BatchLogRepository(
+    resources.Repository[batch_log_entry.BatchLogEntryDTO],
+    abc.ABC,
+):
     @abc.abstractmethod
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_earliest(self) -> batch_log_entry.BatchLogEntry:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_latest(self) -> batch_log_entry.BatchLogEntry:
+    def get_earliest_timestamp(self) -> typing.Optional[datetime.datetime]:
         raise NotImplementedError
 
 
-class SqlAlchemyBatchLogRepository(BatchLogRepository):
+class SqlAlchemyBatchLogRepository(
+    BatchLogRepository,
+    resources.SqlAlchemyRepository[batch_log_entry.BatchLogEntryDTO],
+):
     def __init__(
         self,
-        session: sao.Session,
+        session: orm.Session,
         ts_adapter: timestamp_adapter.TimestampAdapter,
     ):
-        self._session = session
         self._ts_adapter = ts_adapter
-
-    def add(
-        self, log_entry: batch_log_entry.BatchLogEntry
-    ) -> batch_log_entry.BatchLogEntry:
-        log_entry_dto = log_entry.to_dto()
-        self._session.add(log_entry_dto)
-        return log_entry
+        super().__init__(session)
 
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
         ts = self._ts_adapter.now().value
         cutoff = ts - datetime.timedelta(days=days_to_keep.value)
         return (
-            self._session.query(batch_log_entry.BatchLogEntryDTO)
+            self.session.query(batch_log_entry.BatchLogEntryDTO)
             .filter(batch_log_entry.BatchLogEntryDTO.ts < cutoff)
             .delete()
         )
 
-    def get_earliest(self) -> batch_log_entry.BatchLogEntry:
-        dto: batch_log_entry.BatchLogEntryDTO = (
-            self._session.query(batch_log_entry.BatchLogEntryDTO)
+    @property
+    def entity_type(self) -> typing.Type[batch_log_entry.BatchLogEntryDTO]:
+        return batch_log_entry.BatchLogEntryDTO
+
+    def get_earliest_timestamp(self) -> typing.Optional[datetime.datetime]:
+        earliest_entry = (
+            self.session.query(batch_log_entry.BatchLogEntryDTO)
             .order_by(batch_log_entry.BatchLogEntryDTO.ts)
             .first()
         )
-        return dto.to_domain()
-
-    def get_latest(self) -> batch_log_entry.BatchLogEntry:
-        dto: batch_log_entry.BatchLogEntryDTO = (
-            self._session.query(batch_log_entry.BatchLogEntryDTO)
-            .order_by(sa.desc(batch_log_entry.BatchLogEntryDTO.ts))  # type: ignore
-            .first()
-        )
-        return dto.to_domain()
+        if earliest_entry is None:
+            return None
+        else:
+            return earliest_entry.ts

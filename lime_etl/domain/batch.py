@@ -11,6 +11,7 @@ from lime_etl.domain import exceptions, job_result, value_objects
 @dataclasses.dataclass(unsafe_hash=True)
 class BatchDTO:
     id: str
+    name: str
     execution_error_message: typing.Optional[str]
     execution_error_occurred: typing.Optional[bool]
     execution_millis: typing.Optional[int]
@@ -34,6 +35,7 @@ class BatchDTO:
 
         return Batch(
             id=value_objects.UniqueId(self.id),
+            name=value_objects.BatchName(self.name),
             execution_millis=execution_millis,
             job_results=results,
             execution_success_or_failure=execution_success_or_failure,
@@ -45,6 +47,7 @@ class BatchDTO:
 @dataclasses.dataclass(frozen=True)
 class Batch:
     id: value_objects.UniqueId
+    name: value_objects.BatchName
     job_results: typing.FrozenSet[job_result.JobResult]
     execution_success_or_failure: typing.Optional[value_objects.Result]
     execution_millis: typing.Optional[value_objects.ExecutionMillis]
@@ -99,6 +102,7 @@ class Batch:
 
         return BatchDTO(
             id=self.id.value,
+            name=self.name.value,
             execution_millis=execution_millis,
             running=self.running.value,
             job_results=results,

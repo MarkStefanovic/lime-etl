@@ -1,11 +1,13 @@
 import datetime
-from typing import Generator, List, Optional
+import typing
 
 import pytest
-from sqlalchemy import create_engine
+from lime_uow import resources
+from sqlalchemy import create_engine, orm
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session, clear_mappers, sessionmaker
+from sqlalchemy.orm import clear_mappers, Session, sessionmaker
 
+from lime_etl.adapters import job_repository
 from lime_etl.adapters import (
     batch_log_repository,
     batch_repository,
@@ -20,7 +22,7 @@ from lime_etl.domain import (
     job_result,
     value_objects,
 )
-from lime_etl.services import unit_of_work  # type: ignore
+from lime_etl.services import admin_unit_of_work
 
 
 @pytest.fixture
@@ -32,7 +34,7 @@ def in_memory_db() -> Engine:
 
 
 @pytest.fixture
-def session_factory(in_memory_db: Engine) -> Generator[sessionmaker, None, None]:
+def session_factory(in_memory_db: Engine) -> typing.Generator[sessionmaker, None, None]:
     start_mappers()
     yield sessionmaker(bind=in_memory_db)
     clear_mappers()
@@ -53,115 +55,144 @@ class StaticTimestampAdapter(timestamp_adapter.TimestampAdapter):
     def __init__(self, dt: datetime.datetime):
         self.dt = dt
 
+    def rollback(self) -> None:
+        pass
+
+    def save(self) -> None:
+        pass
+
     def now(self) -> value_objects.Timestamp:
         return value_objects.Timestamp(self.dt)
 
 
-class DummyBatchLogRepository(batch_log_repository.BatchLogRepository):
-    def __init__(self) -> None:
-        self.batch_log: List[batch_log_entry.BatchLogEntry] = []
-        super().__init__()
-
-    def add(
-        self, log_entry: batch_log_entry.BatchLogEntry
-    ) -> batch_log_entry.BatchLogEntry:
-        self.batch_log.append(log_entry)
-        return log_entry
-
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
-        cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
-            days=days_to_keep.value
-        )
-        self.batch_log = [e for e in self.batch_log if e.ts.value > cutoff]
-        return len(self.batch_log)
-
-    def get_earliest(self) -> batch_log_entry.BatchLogEntry:
-        return self.batch_log[0]
-
-    def get_latest(self) -> batch_log_entry.BatchLogEntry:
-        return self.batch_log[-1]
-
-
-class DummyJobLogRepository(job_log_repository.JobLogRepository):
-    def __init__(self) -> None:
-        self.job_log: List[job_log_entry.JobLogEntry] = []
-        super().__init__()
-
-    def add(self, log_entry: job_log_entry.JobLogEntry) -> job_log_entry.JobLogEntry:
-        self.job_log.append(log_entry)
-        return log_entry
-
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
-        cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
-            days=days_to_keep.value
-        )
-        self.job_log = [e for e in self.job_log if e.ts.value > cutoff]
-        return len(self.job_log)
-
-
-class DummyBatchRepository(batch_repository.BatchRepository):
-    def __init__(self) -> None:
-        self.entries: List[batch.Batch] = []
-        super().__init__()
-
-    def add(self, batch: batch.Batch) -> batch.Batch:
-        self.entries.append(batch)
-        return batch
-
-    def add_job_result(self, result: job_result.JobResult) -> job_result.JobResult:
-        return result
-
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
-        cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
-            days=days_to_keep.value
-        )
-        self.entries = [e for e in self.entries if e.ts.value > cutoff]
-        return len(self.entries)
-
-    def get_batch_by_id(
-        self, batch_id: value_objects.UniqueId
-    ) -> Optional[batch.Batch]:
-        return None
-
-    def get_last_successful_ts_for_job(
-        self, job_name: value_objects.JobName
-    ) -> Optional[value_objects.Timestamp]:
-        return self.get_latest().ts  # type: ignore
-
-    def get_latest(self) -> Optional[batch.Batch]:
-        latest: batch.Batch = sorted(
-            self.entries, key=lambda e: e.ts.value, reverse=True
-        )[0]
-        return latest
-
-    def get_latest_result_for_job(
-        self, job_name: value_objects.JobName
-    ) -> List[job_result.JobResult]:
-        return []
-
-    def update(self, batch_to_update: batch.Batch) -> batch.Batch:
-        return batch_to_update
-
-
-class DummyUnitOfWork(unit_of_work.UnitOfWork):
+class DummyBatchLogRepository(
+    batch_log_repository.BatchLogRepository,
+    resources.DummyRepository[batch_log_entry.BatchLogEntryDTO],
+):
     def __init__(
         self,
-        batches: batch_repository.BatchRepository,
-        batch_log_entry_repo: batch_log_repository.BatchLogRepository,
-        job_log_entry_repo: job_log_repository.JobLogRepository,
+        initial_values: typing.Optional[
+            typing.List[batch_log_entry.BatchLogEntryDTO]
+        ] = None,
+    ) -> None:
+        super().__init__(initial_values=initial_values, key_fn=lambda b: b.id)
+
+    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
+        cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
+            days=days_to_keep.value
+        )
+        self._current_state = [e for e in self.all() if e.ts > cutoff]
+        return len(self._current_state)
+
+    def get_earliest_timestamp(self) -> typing.Optional[datetime.datetime]:
+        return sorted(self._current_state, key=lambda b: b.ts)[0].ts
+
+
+class DummyJobRepository(
+    job_repository.JobRepository,
+    resources.DummyRepository[job_result.JobResultDTO],
+):
+    def __init__(
+        self,
+        initial_values: typing.Optional[typing.List[job_result.JobResultDTO]] = None,
+        /,
+    ) -> None:
+        super().__init__(initial_values=initial_values, key_fn=lambda o: o.id)
+
+    def get_latest(
+        self, job_name: value_objects.JobName, /
+    ) -> typing.Optional[job_result.JobResultDTO]:
+        return sorted(self._current_state, key=lambda e: e.ts)[-1]
+
+    def get_last_successful_ts(
+        self, job_name: value_objects.JobName, /
+    ) -> typing.Optional[value_objects.Timestamp]:
+        last_successful_run = next(
+            o
+            for o in sorted(self._current_state, key=lambda e: e.ts, reverse=True)
+            if all(r.test_passed for r in o.test_results)
+        )
+        return value_objects.Timestamp(last_successful_run.ts)
+
+
+class DummyJobLogRepository(
+    job_log_repository.JobLogRepository,
+    resources.DummyRepository[job_log_entry.JobLogEntryDTO],
+):
+    def __init__(
+        self,
+        initial_values: typing.Optional[
+            typing.List[job_log_entry.JobLogEntryDTO]
+        ] = None,
+        /,
+    ) -> None:
+        super().__init__(initial_values=initial_values, key_fn=lambda o: o.id)
+
+    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
+        cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
+            days=days_to_keep.value
+        )
+        self._current_state = [e for e in self.all() if e.ts > cutoff]
+        return len(self._current_state)
+
+
+class DummyBatchRepository(
+    batch_repository.BatchRepository,
+    resources.DummyRepository[batch.BatchDTO],
+):
+    def __init__(
+        self,
+        initial_values: typing.Optional[typing.List[batch.BatchDTO]] = None,
+    ) -> None:
+        super().__init__(initial_values=initial_values, key_fn=lambda o: o.id)
+
+    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
+        cutoff = datetime.datetime(2020, 1, 1) - datetime.timedelta(
+            days=days_to_keep.value
+        )
+        self._current_state = [e for e in self.all() if e.ts > cutoff]
+        return len(self._current_state)
+
+    def get_latest(self) -> typing.Optional[batch.BatchDTO]:
+        return sorted(self._current_state, key=lambda e: e.ts)[-1]
+
+
+class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
+    def __init__(
+        self,
+        session_factory: orm.sessionmaker,
+        /,
     ):
-        self.batch_id = value_objects.UniqueId("a" * 32)
-        self.batches = batches
-        self.batch_log = batch_log_entry_repo
-        self.job_log = job_log_entry_repo
-        self.ts_adapter = static_timestamp_adapter(datetime.datetime(2020, 1, 1))
-        self.committed = False
+        super().__init__(session_factory)
 
-    def commit(self) -> None:
-        self.committed = True
+    @property
+    def batch_repo(self) -> batch_repository.BatchRepository:
+        return self.get_resource(batch_repository.BatchRepository)  # type: ignore
 
-    def rollback(self) -> None:
-        pass
+    @property
+    def batch_log_repo(self) -> batch_log_repository.BatchLogRepository:
+        return self.get_resource(batch_log_repository.BatchLogRepository)  # type: ignore
+
+    @property
+    def job_repo(self) -> job_repository.JobRepository:
+        return self.get_resource(job_repository.JobRepository)  # type: ignore
+
+    @property
+    def job_log_repo(self) -> job_log_repository.JobLogRepository:
+        return self.get_resource(job_log_repository.JobLogRepository)  # type: ignore
+
+    @property
+    def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
+        return self.get_resource(timestamp_adapter.TimestampAdapter)  # type: ignore
+
+    def create_resources(self) -> typing.AbstractSet[resources.Resource[typing.Any]]:
+        return {
+            DummyBatchRepository(),
+            DummyBatchLogRepository(),
+            DummyJobRepository(),
+            DummyJobLogRepository(),
+            static_timestamp_adapter(datetime.datetime(2020, 1, 1)),
+        }
 
 
 @pytest.fixture
@@ -180,16 +211,8 @@ def dummy_job_log_entry_repository() -> DummyJobLogRepository:
 
 
 @pytest.fixture
-def dummy_uow(
-    dummy_batch_repository: batch_repository.BatchRepository,
-    dummy_batch_log_entry_repository: batch_log_repository.BatchLogRepository,
-    dummy_job_log_entry_repository: job_log_repository.JobLogRepository,
-) -> DummyUnitOfWork:
-    return DummyUnitOfWork(
-        batches=dummy_batch_repository,
-        batch_log_entry_repo=dummy_batch_log_entry_repository,
-        job_log_entry_repo=dummy_job_log_entry_repository,
-    )
+def dummy_admin_uow(session_factory: orm.sessionmaker) -> DummyAdminUnitOfWork:
+    return DummyAdminUnitOfWork(session_factory)
 
 
 @pytest.fixture(scope="session")
@@ -208,7 +231,7 @@ def postgres_db() -> Engine:
 
 
 @pytest.fixture
-def postgres_session(postgres_db: Engine) -> sessionmaker:
+def postgres_session(postgres_db: Engine) -> typing.Generator[sessionmaker, None, None]:
     start_mappers()
     yield sessionmaker(bind=postgres_db)()
     clear_mappers()

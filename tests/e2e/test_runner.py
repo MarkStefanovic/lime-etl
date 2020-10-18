@@ -11,8 +11,8 @@ from lime_etl.domain import (
     shared_resource,
     value_objects,
 )
-from lime_etl import ETLJobSpec, runner
 from lime_etl.services import job_logging_service
+from lime_etl import runner
 
 
 class HelloWorldJob(job_spec.ETLJobSpec):
@@ -23,12 +23,13 @@ class HelloWorldJob(job_spec.ETLJobSpec):
 
     def run(
         self,
-        logger: job_logging_service.JobLoggingService,
+        logger: job_logging_service.AbstractJobLoggingService,
         resources: typing.Mapping[value_objects.ResourceName, typing.Any],
-    ) -> None:
+    ) -> value_objects.Result:
         fh: typing.IO[bytes] = resources[value_objects.ResourceName("hello_world_file")]
         fh.write(b"Hello World")
         self._file_created = True
+        return value_objects.Result.success()
 
     @property
     def dependencies(self) -> typing.List[value_objects.JobName]:
@@ -38,12 +39,14 @@ class HelloWorldJob(job_spec.ETLJobSpec):
     def job_name(self) -> value_objects.JobName:
         return value_objects.JobName(self._job_name)
 
-    def on_execution_error(self, error_message: str) -> typing.Optional[ETLJobSpec]:
+    def on_execution_error(
+        self, error_message: str
+    ) -> typing.Optional[job_spec.ETLJobSpec]:
         return None
 
     def on_test_failure(
         self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
-    ) -> typing.Optional[ETLJobSpec]:
+    ) -> typing.Optional[job_spec.ETLJobSpec]:
         return None
 
     @property
@@ -66,11 +69,11 @@ class HelloWorldJob(job_spec.ETLJobSpec):
 
     def test(
         self,
-        logger: job_logging_service.JobLoggingService,
+        logger: job_logging_service.AbstractJobLoggingService,
         resources: typing.Mapping[
-            value_objects.ResourceName, shared_resource.SharedResource
+            value_objects.ResourceName, shared_resource.SharedResource[typing.IO[bytes]]
         ],
-    ) -> typing.Iterable[job_test_result.SimpleJobTestResult]:
+    ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         if self._file_created:
             return [
                 job_test_result.SimpleJobTestResult(
@@ -101,25 +104,23 @@ class TempFileResource(shared_resource.SharedResource[typing.IO[bytes]]):
         return self._file_handle
 
     def close(self) -> None:
-        self._file_handle.close()
+        self._file_handle.close()  # type: ignore
 
 
 def test_run_with_sqlite_using_default_parameters_happy_path(
     in_memory_db: sa.engine.Engine,
 ) -> None:
     etl_jobs = [
+        HelloWorldJob("hello_world_job", dependencies=[]),
         HelloWorldJob(
-            "hello_world_job", dependencies=[value_objects.JobName("delete_old_logs")]
-        ),
-        HelloWorldJob(
-            "hello_world_job2", dependencies=[value_objects.JobName("delete_old_logs")]
+            "hello_world_job2", dependencies=[value_objects.JobName("hello_world_job")]
         ),
     ]
     resources = [TempFileResource("hello_world_file")]
     actual = runner.run(
-        admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+        batch_name="test_batch",
         engine_or_uri=in_memory_db,
-        etl_jobs=etl_jobs,
+        jobs=etl_jobs,
         resources=resources,
     )
     job_execution_results = [
@@ -130,14 +131,12 @@ def test_run_with_sqlite_using_default_parameters_happy_path(
         for jr in actual.current_results.job_results
     ), f"Expected all Success values, but got {job_execution_results}"
     assert actual.current_results.job_names == {
-        value_objects.JobName("delete_old_logs"),
         value_objects.JobName("hello_world_job"),
         value_objects.JobName("hello_world_job2"),
     }
-    assert actual.current_results.broken_jobs == set(), [
-        j.execution_success_or_failure.value for j in actual.current_results.job_results
-    ]
+    assert actual.current_results.broken_jobs == set()
     assert actual.current_results.running.value is False
+    assert actual.current_results.execution_millis is not None
     assert actual.current_results.execution_millis.value > 0
     assert actual.current_results.ts is not None
 
@@ -164,10 +163,10 @@ def test_run_with_sqlite_using_default_parameters_happy_path(
     with in_memory_db.begin() as con:
         result = con.execute(sa.text(sql)).fetchall()
     assert (
-        len(result) == 3
-    ), f"{len(result)} job results were added, but 3 jobs (1 admin) were scheduled."
+        len(result) == 2
+    ), f"{len(result)} job results were added, but 2 jobs were scheduled."
     job_names = {row["job_name"] for row in result}
-    assert job_names == {"hello_world_job2", "hello_world_job", "delete_old_logs"}
+    assert job_names == {"hello_world_job2", "hello_world_job"}
     assert all(row["execution_error_occurred"] == 0 for row in result)
     assert all(row["execution_error_message"] is None for row in result)
     assert all({row["ts"] is not None for row in result})
@@ -181,22 +180,14 @@ def test_run_with_sqlite_using_default_parameters_happy_path(
         result = con.execute(sa.text(sql)).fetchall()
     job_log_messages = {row["message"] for row in result}
     assert job_log_messages == {
-        "Deleted batch log entries older than 3 days old.",
-        "Deleted batch results older than 3 days old.",
-        "Deleted job log entries older than 3 days old.",
-        "Finished running [delete_old_logs].",
         "Finished running [hello_world_job2].",
         "Finished running [hello_world_job].",
-        "Running the tests for [delete_old_logs]...",
         "Running the tests for [hello_world_job2]...",
         "Running the tests for [hello_world_job]...",
-        "Starting [delete_old_logs]...",
         "Starting [hello_world_job2]...",
         "Starting [hello_world_job]...",
-        "[delete_old_logs] finished successfully.",
         "[hello_world_job2] finished successfully.",
         "[hello_world_job] finished successfully.",
-        "delete_old_logs test results: tests_passed=1, tests_failed=0",
         "hello_world_job test results: tests_passed=1, tests_failed=0",
         "hello_world_job2 test results: tests_passed=1, tests_failed=0",
     }
@@ -216,9 +207,9 @@ def test_run_with_unresolved_dependencies(
     resources = [TempFileResource("hello_world_file")]
     with pytest.raises(exceptions.DependencyErrors) as e:
         runner.run(
-            admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+            batch_name="test_batch",
             engine_or_uri=in_memory_db,
-            etl_jobs=etl_jobs,
+            jobs=etl_jobs,
             resources=resources,
         )
     assert (
@@ -278,9 +269,9 @@ def test_run_with_dependencies_out_of_order(
     resources = [TempFileResource("hello_world_file")]
     with pytest.raises(exceptions.DependencyErrors) as e:
         runner.run(
+            batch_name="test_batch",
             engine_or_uri=in_memory_db,
-            etl_jobs=etl_jobs,
-            admin_jobs=runner.DEFAULT_ADMIN_JOBS,
+            jobs=etl_jobs,
             resources=resources,
         )
     assert (

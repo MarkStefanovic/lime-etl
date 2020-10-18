@@ -36,6 +36,7 @@ batches = Table(
     "batches",
     metadata,
     Column("id", String(32), primary_key=True),
+    Column("name", String(200), nullable=False),
     Column("execution_millis", Integer, nullable=True),
     Column("execution_error_occurred", Boolean, nullable=True),
     Column("execution_error_message", String(2000), nullable=True),

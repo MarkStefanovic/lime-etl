@@ -246,7 +246,7 @@ class SingleChar(ValueObject):
         super().__init__(value)
 
 
-class JobName(ValueObject):
+class _DbName(ValueObject):
     def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
@@ -263,6 +263,16 @@ class JobName(ValueObject):
                 f"{self.__class__.__name__} expects a str, but got {value!r}"
             )
 
+        super().__init__(value)
+
+
+class BatchName(_DbName):
+    def __init__(self, value: str, /):
+        super().__init__(value)
+
+
+class JobName(_DbName):
+    def __init__(self, value: str, /):
         super().__init__(value)
 
 
@@ -319,6 +329,11 @@ class DaysToKeep(_PositiveInt):
 
 class ExecutionMillis(_PositiveInt):
     ...
+
+    @staticmethod
+    def calculate(*, start_time: Timestamp, end_time: Timestamp) -> ExecutionMillis:
+        elapsed_millis = int((end_time.value - start_time.value).total_seconds() * 1000)
+        return ExecutionMillis(elapsed_millis)
 
 
 class TimeoutSeconds(_PositiveInt):

@@ -1,6 +1,6 @@
 import collections
-import datetime
 import itertools
+import traceback
 import typing
 from typing import List
 
@@ -16,80 +16,88 @@ from lime_etl.domain import (
     value_objects,
 )
 from lime_etl.services import (
+    admin_unit_of_work,
     batch_logging_service,
-    job_logging_service,
     job_runner,
-    unit_of_work,
 )
 
 
 def run(
     *,
+    admin_uow: admin_unit_of_work.AdminUnitOfWork,
+    batch_id: value_objects.UniqueId,
+    batch_name: value_objects.BatchName,
     jobs: typing.Collection[job_spec.JobSpec],
+    logger: batch_logging_service.BatchLoggingService,
     resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-    uow: unit_of_work.UnitOfWork,
     skip_tests: bool,
+    ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> batch_delta.BatchDelta:
-    batch_id = value_objects.UniqueId.generate()
-    batch_logger = batch_logging_service.DefaultBatchLoggingService(
-        uow=uow, batch_id=batch_id
-    )
-    start_time = datetime.datetime.now()
+    start_time = ts_adapter.now()
     try:
         dep_results = check_dependencies(jobs)
         if dep_results:
             raise exceptions.DependencyErrors(dep_results)
 
-        with uow:
-            previous_results = uow.batches.get_latest()
+        with admin_uow as uow:
+            previous_results = uow.batch_repo.get_latest()
             new_batch = batch.Batch(
                 id=batch_id,
+                name=batch_name,
                 job_results=frozenset(),
                 execution_millis=None,
                 execution_success_or_failure=None,
                 running=value_objects.Flag(True),
-                ts=ts_adapter.now(),
+                ts=start_time,
             )
-            uow.batches.add(new_batch)
-            uow.commit()
+            uow.batch_repo.add(new_batch.to_dto())
+            uow.save()
 
-        batch_logger.log_info(f"Staring batch [{batch_id.value}]...")
+        logger.log_info(f"Staring batch [{batch_id.value}]...")
         result = _run_batch(
-            batch_logger=batch_logger,
-            uow=uow,
+            admin_uow=admin_uow,
             batch_id=batch_id,
+            batch_logger=logger,
+            batch_name=batch_name,
             jobs=jobs,
             resources=resources,
-            ts_adapter=ts_adapter,
             skip_tests=skip_tests,
+            start_time=start_time,
+            ts_adapter=ts_adapter,
         )
 
-        with uow:
-            uow.batches.update(result)
-            uow.commit()
+        with admin_uow as uow:
+            uow.batch_repo.update(result.to_dto())
+            uow.save()
 
-        batch_logger.log_info(f"Batch [{batch_id.value}] finished.")
+        logger.log_info(f"Batch [{batch_id.value}] finished.")
+        if previous_results:
+            previous_results_domain: typing.Optional[
+                batch.Batch
+            ] = previous_results.to_domain()
+        else:
+            previous_results_domain = None
         return batch_delta.BatchDelta(
             current_results=result,
-            previous_results=previous_results,
+            previous_results=previous_results_domain,
         )
     except Exception as e:
-        batch_logger.log_error(str(e))
-        result = batch.Batch(
-            id=batch_id,
-            job_results=frozenset(),
-            execution_success_or_failure=value_objects.Result.failure(str(e)),
-            execution_millis=ts_adapter.get_elapsed_time(
-                value_objects.Timestamp(start_time)
-            ),
-            running=value_objects.Flag(False),
-            ts=ts_adapter.now(),
-        )
-        with uow:
-            uow.batches.update(result)
-            uow.commit()
-
+        logger.log_error(str(e))
+        end_time = ts_adapter.now()
+        with admin_uow as uow:
+            result = batch.Batch(
+                id=batch_id,
+                name=batch_name,
+                job_results=frozenset(),
+                execution_success_or_failure=value_objects.Result.failure(str(e)),
+                execution_millis=value_objects.ExecutionMillis.calculate(
+                    start_time=start_time, end_time=end_time
+                ),
+                running=value_objects.Flag(False),
+                ts=start_time,
+            )
+            uow.batch_repo.update(result.to_dto())
+            uow.save()
         raise
 
 
@@ -179,17 +187,17 @@ def _is_resource_still_needed(
 
 def _run_batch(
     batch_id: value_objects.UniqueId,
-    batch_logger: batch_logging_service.BatchLoggingService,
+    batch_name: value_objects.BatchName,
+    batch_logger: batch_logging_service.AbstractBatchLoggingService,
     jobs: typing.Collection[job_spec.JobSpec],
     resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-    uow: unit_of_work.UnitOfWork,
+    admin_uow: admin_unit_of_work.AdminUnitOfWork,
     skip_tests: bool,
+    start_time: value_objects.Timestamp,
+    ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> batch.Batch:
     _check_for_missing_resources(jobs=jobs, resources=resources)
     _check_for_duplicate_job_names(jobs)
-
-    start_ts = ts_adapter.now()
 
     job_results: List[job_result.JobResult] = []
     resource_managers = {
@@ -206,13 +214,12 @@ def _run_batch(
     }
 
     for ix, job in enumerate(jobs):
-        with uow:
-            last_ts = uow.jobs.get_last_successful_ts(job.job_name)
+        current_ts = ts_adapter.now()
+        with admin_uow as uow:
+            last_ts = uow.job_repo.get_last_successful_ts(job.job_name)
 
         if last_ts:
-            seconds_since_last_refresh = (
-                uow.ts_adapter.now().value - last_ts.value
-            ).total_seconds()
+            seconds_since_last_refresh = (current_ts.value - start_time).total_seconds()
             if seconds_since_last_refresh < job.seconds_between_refreshes.value:
                 batch_logger.log_info(
                     f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
@@ -222,11 +229,7 @@ def _run_batch(
                 continue
 
         job_id = value_objects.UniqueId.generate()
-        job_logger = job_logging_service.DefaultJobLoggingService(
-            uow=uow,
-            batch_id=batch_id,
-            job_id=job_id,
-        )
+        job_logger = batch_logger.create_job_logger()
         result = job_result.JobResult(
             id=job_id,
             batch_id=batch_id,
@@ -235,11 +238,11 @@ def _run_batch(
             execution_millis=None,
             execution_success_or_failure=None,
             running=value_objects.Flag(True),
-            ts=ts_adapter.now(),
+            ts=start_time,
         )
-        with uow:
-            uow.jobs.add(result)
-            uow.commit()
+        with admin_uow as uow:
+            uow.job_repo.add(result.to_dto())
+            uow.save()
 
         batch_logger.log_info(f"Opening resources for job [{job.job_name}]...")
         if isinstance(job, job_spec.ETLJobSpec):
@@ -252,20 +255,20 @@ def _run_batch(
 
         try:
             result = job_runner.default_job_runner(
-                uow=uow,
+                admin_uow=admin_uow,
                 job=job,
                 logger=job_logger,
                 batch_id=batch_id,
                 job_id=job_id,
                 resources=job_resources,
-                ts_adapter=ts_adapter,
                 skip_tests=skip_tests,
+                ts_adapter=ts_adapter,
             )
         except Exception as e:
-            millis = ts_adapter.get_elapsed_time(start_ts)
-            err = value_objects.Result.failure(
-                f"An exception occurred while running [{job.job_name}]: {e}."
-            )
+            millis = ts_adapter.get_elapsed_time(start_time)
+            err_msg =  f"An exception occurred while running [{job.job_name}]: {traceback.format_exc(10)}."
+            err = value_objects.Result.failure(err_msg)
+            batch_logger.log_error(err_msg)
             result = job_result.JobResult(
                 id=job_id,
                 batch_id=batch_id,
@@ -279,9 +282,9 @@ def _run_batch(
         finally:
             assert result is not None
             job_results.append(result)
-            with uow:
-                uow.jobs.update(result)
-                uow.commit()
+            with admin_uow as uow:
+                uow.job_repo.update(result.to_dto())
+                admin_uow.save()
 
         if isinstance(job, job_spec.ETLJobSpec):
             # clean up resources no longer needed
@@ -296,13 +299,15 @@ def _run_batch(
                 if not resource_needed:
                     resource_manager.close()
 
-    end_time = ts_adapter.now().value
-    execution_millis = int((end_time - start_ts.value).total_seconds() * 1000)
+    end_time = ts_adapter.now()
+
+    execution_millis = int((end_time.value - start_time.value).total_seconds() * 1000)
     return batch.Batch(
         id=batch_id,
+        name=batch_name,
         execution_millis=value_objects.ExecutionMillis(execution_millis),
         job_results=frozenset(job_results),
         execution_success_or_failure=value_objects.Result.success(),
         running=value_objects.Flag(False),
-        ts=uow.ts_adapter.now(),
+        ts=end_time,
     )

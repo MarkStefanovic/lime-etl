@@ -8,3 +8,5 @@ __pycache__
 .env
 *.db
 .pytest_cache
+
+poetry.lock

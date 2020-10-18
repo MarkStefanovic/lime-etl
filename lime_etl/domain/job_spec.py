@@ -3,8 +3,10 @@ from __future__ import annotations
 import abc
 import typing
 
+from lime_uow import unit_of_work
+
 from lime_etl.domain import job_test_result, value_objects
-from lime_etl.services import job_logging_service, unit_of_work
+from lime_etl.services import admin_unit_of_work, job_logging_service
 
 
 class JobSpec(abc.ABC):
@@ -58,16 +60,16 @@ class AdminJobSpec(JobSpec):
     @abc.abstractmethod
     def run(
         self,
-        uow: unit_of_work.UnitOfWork,
-        logger: job_logging_service.JobLoggingService,
+        admin_uow: admin_unit_of_work.AdminUnitOfWork,
+        logger: job_logging_service.AbstractJobLoggingService,
     ) -> value_objects.Result:
         raise NotImplementedError
 
     @abc.abstractmethod
     def test(
         self,
-        uow: unit_of_work.UnitOfWork,
-        logger: job_logging_service.JobLoggingService,
+        admin_uow: admin_unit_of_work.AdminUnitOfWork,
+        logger: job_logging_service.AbstractJobLoggingService,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError
 
@@ -93,7 +95,7 @@ class ETLJobSpec(JobSpec):
     @abc.abstractmethod
     def run(
         self,
-        logger: job_logging_service.JobLoggingService,
+        logger: job_logging_service.AbstractJobLoggingService,
         resources: typing.Mapping[value_objects.ResourceName, typing.Any],
     ) -> value_objects.Result:
         raise NotImplementedError
@@ -101,7 +103,7 @@ class ETLJobSpec(JobSpec):
     @abc.abstractmethod
     def test(
         self,
-        logger: job_logging_service.JobLoggingService,
+        logger: job_logging_service.AbstractJobLoggingService,
         resources: typing.Mapping[value_objects.ResourceName, typing.Any],
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError

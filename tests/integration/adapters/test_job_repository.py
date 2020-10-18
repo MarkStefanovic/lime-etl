@@ -36,7 +36,7 @@ def test_sqlalchemy_job_repository_add(session: Session) -> None:
         session=session,
         ts_adapter=ts_adapter,
     )
-    repo.add(new_job)
+    repo.add(new_job.to_dto())
     session.commit()
     actual_jobs = [dict(row) for row in session.execute("SELECT * FROM jobs")]
     expected_jobs = [
@@ -76,7 +76,7 @@ def test_sqlalchemy_job_repository_update(
         test_results=frozenset(),
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
-    repo.add(new_job)
+    repo.add(new_job.to_dto())
     updated_job = job_result.JobResult(
         id=job_id,
         batch_id=batch_id,
@@ -87,7 +87,7 @@ def test_sqlalchemy_job_repository_update(
         test_results=frozenset(),
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
-    repo.update(updated_job)
+    repo.update(updated_job.to_dto())
     session.commit()
     actual_jobs = [dict(row) for row in session.execute("SELECT * FROM jobs")]
     expected_jobs = [
@@ -103,97 +103,6 @@ def test_sqlalchemy_job_repository_update(
         }
     ]
     assert actual_jobs == expected_jobs
-
-
-def test_sqlalchemy_job_repository_delete_old_entries(session: Session) -> None:
-    session.execute(
-        """
-        INSERT INTO jobs 
-            (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, running, ts)
-        VALUES 
-            ('j1396d94bd55a455baf80a26209349d6', 'b1396d94bd55a455baf80a26209349d6', 'test_table', 100, 0, NULL, 0, '2010-01-01 01:01:01.000000'),
-            ('j2396d94bd55a455baf80a26209349d6', 'b2396d94bd55a455baf80a26209349d6', 'test_table', 100, 0, NULL, 0, '2020-01-01 01:01:01.000000');
-    """
-    )
-    session.commit()
-    ts_adapter = conftest.static_timestamp_adapter(
-        datetime.datetime(2020, 1, 1, 1, 1, 1)
-    )
-    repo = job_repository.SqlAlchemyJobRepository(
-        session=session,
-        ts_adapter=ts_adapter,
-    )
-    rows_deleted = repo.delete_old_entries(value_objects.DaysToKeep(10))
-    session.commit()
-    assert rows_deleted == 1
-
-    actual = [dict(row) for row in session.execute("SELECT * FROM jobs")]
-    expected = [
-        {
-            "batch_id": "b2396d94bd55a455baf80a26209349d6",
-            "execution_error_message": None,
-            "execution_error_occurred": 0,
-            "execution_millis": 100,
-            "id": "j2396d94bd55a455baf80a26209349d6",
-            "job_name": "test_table",
-            "running": 0,
-            "ts": "2020-01-01 01:01:01.000000",
-        }
-    ]
-    assert actual == expected
-
-    actual_table_update_rows = [
-        dict(row) for row in session.execute("SELECT * FROM jobs")
-    ]
-    expected_table_update_rows = [
-        {
-            "batch_id": "b2396d94bd55a455baf80a26209349d6",
-            "execution_error_message": None,
-            "execution_error_occurred": 0,
-            "execution_millis": 100,
-            "id": "j2396d94bd55a455baf80a26209349d6",
-            "job_name": "test_table",
-            "running": 0,
-            "ts": "2020-01-01 01:01:01.000000",
-        }
-    ]
-    assert actual_table_update_rows == expected_table_update_rows
-
-
-def test_job_repository_get_by_id(session: Session) -> None:
-    batch_id_1 = "a" * 32
-    batch_id_2 = "b" * 32
-    batch_id_3 = "c" * 32
-    job_id_1 = "d" * 32
-    job_id_2 = "e" * 32
-    job_id_3 = "f" * 32
-    session.execute(
-        f"""
-        INSERT INTO jobs 
-            (id, batch_id, job_name, execution_millis, execution_error_occurred, execution_error_message, running, ts)
-        VALUES 
-            ({job_id_1!r}, {batch_id_1!r}, 'test_table', 100, 0, NULL, 0, '2010-01-01 01:01:01.000000'),
-            ({job_id_2!r}, {batch_id_3!r}, 'test_table', 100, 0, NULL, 0, '2020-01-04 01:01:01.000000'),
-            ({job_id_3!r}, {batch_id_2!r}, 'test_table', 100, 0, NULL, 0, '2020-01-01 01:01:05.000000');
-    """
-    )
-    session.commit()
-    ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
-    repo = job_repository.SqlAlchemyJobRepository(
-        session=session, ts_adapter=ts_adapter
-    )
-    actual = repo.get_job_by_id(value_objects.UniqueId(job_id_2))
-    expected = job_result.JobResult(
-        id=value_objects.UniqueId("e" * 32),
-        batch_id=value_objects.UniqueId("c" * 32),
-        job_name=value_objects.JobName("test_table"),
-        test_results=frozenset(),
-        execution_millis=value_objects.ExecutionMillis(100),
-        execution_success_or_failure=value_objects.Result.success(),
-        running=value_objects.Flag(False),
-        ts=value_objects.Timestamp(datetime.datetime(2020, 1, 4, 1, 1, 1)),
-    )
-    assert actual == expected
 
 
 def test_job_repository_get_latest(session: Session) -> None:
@@ -219,15 +128,16 @@ def test_job_repository_get_latest(session: Session) -> None:
         session=session, ts_adapter=ts_adapter
     )
     result = repo.get_latest(value_objects.JobName("test_table"))
-    expected = job_result.JobResult(
-        id=value_objects.UniqueId("e" * 32),
-        batch_id=value_objects.UniqueId("c" * 32),
-        job_name=value_objects.JobName("test_table"),
-        test_results=frozenset(),
-        execution_millis=value_objects.ExecutionMillis(100),
-        execution_success_or_failure=value_objects.Result.success(),
-        running=value_objects.Flag(False),
-        ts=value_objects.Timestamp(datetime.datetime(2020, 1, 1, 4, 1, 1)),
+    expected = job_result.JobResultDTO(
+        id="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        batch_id="cccccccccccccccccccccccccccccccc",
+        job_name="test_table",
+        test_results=[],
+        execution_millis=100,
+        execution_error_occurred=False,
+        execution_error_message=None,
+        running=False,
+        ts=datetime.datetime(2020, 1, 1, 4, 1, 1),
     )
     assert result == expected
 

@@ -13,14 +13,13 @@ from lime_etl.domain.shared_resource import SharedResource  # noqa
 from lime_etl.domain.value_objects import *  # noqa
 from lime_etl.services.admin.delete_old_logs import DeleteOldLogs  # noqa
 from lime_etl.services.batch_logging_service import (  # noqa
-    BatchLoggingService,
+    AbstractBatchLoggingService,
     ConsoleBatchLoggingService,
-    DefaultBatchLoggingService,
+    BatchLoggingService,
 )
 from lime_etl.services.job_logging_service import (  # noqa
     ConsoleJobLoggingService,
-    DefaultJobLoggingService,
     JobLoggingService,
+    AbstractJobLoggingService,
 )
-from lime_etl.services.unit_of_work import DefaultUnitOfWork, UnitOfWork  # noqa
 from lime_etl.runner import DEFAULT_ADMIN_JOBS, run  # noqa
