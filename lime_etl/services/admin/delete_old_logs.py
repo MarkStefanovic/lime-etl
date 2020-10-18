@@ -2,7 +2,6 @@ import datetime
 import typing
 from typing import List
 
-from domain import batch_log_entry
 from lime_etl.adapters import (
     timestamp_adapter,
 )
