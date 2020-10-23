@@ -2,7 +2,7 @@ import abc
 import datetime
 import typing
 
-from lime_uow import resources
+import lime_uow as lu
 from sqlalchemy import orm
 
 from lime_etl.adapters import timestamp_adapter
@@ -10,7 +10,7 @@ from lime_etl.domain import job_log_entry, value_objects
 
 
 class JobLogRepository(
-    resources.Repository[job_log_entry.JobLogEntryDTO],
+    lu.Repository[job_log_entry.JobLogEntryDTO],
     abc.ABC,
 ):
     @abc.abstractmethod
@@ -20,7 +20,7 @@ class JobLogRepository(
 
 class SqlAlchemyJobLogRepository(
     JobLogRepository,
-    resources.SqlAlchemyRepository[job_log_entry.JobLogEntryDTO],
+    lu.SqlAlchemyRepository[job_log_entry.JobLogEntryDTO],
 ):
     def __init__(
         self,
@@ -42,3 +42,7 @@ class SqlAlchemyJobLogRepository(
     @property
     def entity_type(self) -> typing.Type[job_log_entry.JobLogEntryDTO]:
         return job_log_entry.JobLogEntryDTO
+
+    @classmethod
+    def interface(cls) -> typing.Type[JobLogRepository]:
+        return JobLogRepository

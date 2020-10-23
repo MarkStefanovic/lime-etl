@@ -3,12 +3,13 @@ name = "lime-etl"
 version = "0.1.17"
 description = "Simple ETL job runner"
 authors = ["Mark Stefanovic"]
+include = ["lime_etl/py.typed"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8.0"
 sqlalchemy = "^1.3.19"
-lime-uow = "^0.1.25"
+lime-uow = "^0.1.36"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.0.2"

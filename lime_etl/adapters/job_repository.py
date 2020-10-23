@@ -1,14 +1,14 @@
 import abc
 import typing
 
-from lime_uow import resources
+import lime_uow as lu
 from sqlalchemy import desc, orm
 
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import job_result, value_objects
 
 
-class JobRepository(resources.Repository[job_result.JobResultDTO], abc.ABC):
+class JobRepository(lu.Repository[job_result.JobResultDTO], abc.ABC):
     @abc.abstractmethod
     def get_latest(
         self, job_name: value_objects.JobName, /
@@ -23,7 +23,7 @@ class JobRepository(resources.Repository[job_result.JobResultDTO], abc.ABC):
 
 
 class SqlAlchemyJobRepository(
-    JobRepository, resources.SqlAlchemyRepository[job_result.JobResultDTO]
+    JobRepository, lu.SqlAlchemyRepository[job_result.JobResultDTO]
 ):
     def __init__(
         self,
@@ -62,3 +62,7 @@ class SqlAlchemyJobRepository(
             return None
         else:
             return value_objects.Timestamp(jr.ts)
+
+    @classmethod
+    def interface(cls) -> typing.Type[JobRepository]:
+        return JobRepository

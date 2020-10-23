@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass
+import dataclasses
 
 from lime_etl.domain import value_objects
 
 
-@dataclass(unsafe_hash=True)
+@dataclasses.dataclass(unsafe_hash=True)
 class BatchLogEntryDTO:
     id: str
     batch_id: str
@@ -24,7 +24,7 @@ class BatchLogEntryDTO:
         )
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class BatchLogEntry:
     id: value_objects.UniqueId
     batch_id: value_objects.UniqueId

@@ -1,47 +1,40 @@
 import datetime
 import typing
 
+import lime_uow as lu
 import pytest
-from lime_uow import resources
-from sqlalchemy import create_engine, orm
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import clear_mappers, Session, sessionmaker
+import sqlalchemy as sa
+from sqlalchemy import orm
 
-from lime_etl.adapters import job_repository
 from lime_etl.adapters import (
-    batch_log_repository,
-    batch_repository,
-    job_log_repository,
-    timestamp_adapter,
+    batch_log_repository, batch_repository, job_log_repository, job_repository, timestamp_adapter,
 )
 from lime_etl.adapters.orm import metadata, start_mappers
 from lime_etl.domain import (
-    batch,
-    batch_log_entry,
-    job_log_entry,
-    job_result,
-    value_objects,
+    batch, batch_log_entry, job_log_entry, job_result, value_objects,
 )
 from lime_etl.services import admin_unit_of_work
 
 
 @pytest.fixture
-def in_memory_db() -> Engine:
-    engine = create_engine("sqlite:///:memory:", echo=True)
+def in_memory_db() -> sa.engine.Engine:
+    engine = sa.create_engine("sqlite:///:memory:", echo=True)
     # engine = create_engine("sqlite:///:memory:")
     metadata.create_all(engine)
     return engine
 
 
 @pytest.fixture
-def session_factory(in_memory_db: Engine) -> typing.Generator[sessionmaker, None, None]:
+def session_factory(
+    in_memory_db: sa.engine.Engine,
+) -> typing.Generator[orm.sessionmaker, None, None]:
     start_mappers()
-    yield sessionmaker(bind=in_memory_db)
-    clear_mappers()
+    yield orm.sessionmaker(bind=in_memory_db)
+    orm.clear_mappers()
 
 
 @pytest.fixture
-def session(session_factory: sessionmaker) -> Session:
+def session(session_factory: orm.sessionmaker) -> orm.Session:
     return session_factory()
 
 
@@ -55,6 +48,10 @@ class StaticTimestampAdapter(timestamp_adapter.TimestampAdapter):
     def __init__(self, dt: datetime.datetime):
         self.dt = dt
 
+    @classmethod
+    def interface(cls) -> typing.Type[timestamp_adapter.TimestampAdapter]:
+        return timestamp_adapter.TimestampAdapter
+
     def rollback(self) -> None:
         pass
 
@@ -67,7 +64,7 @@ class StaticTimestampAdapter(timestamp_adapter.TimestampAdapter):
 
 class DummyBatchLogRepository(
     batch_log_repository.BatchLogRepository,
-    resources.DummyRepository[batch_log_entry.BatchLogEntryDTO],
+    lu.DummyRepository[batch_log_entry.BatchLogEntryDTO],
 ):
     def __init__(
         self,
@@ -87,10 +84,14 @@ class DummyBatchLogRepository(
     def get_earliest_timestamp(self) -> typing.Optional[datetime.datetime]:
         return sorted(self._current_state, key=lambda b: b.ts)[0].ts
 
+    @classmethod
+    def interface(cls) -> typing.Type[batch_log_repository.BatchLogRepository]:
+        return batch_log_repository.BatchLogRepository
+
 
 class DummyJobRepository(
     job_repository.JobRepository,
-    resources.DummyRepository[job_result.JobResultDTO],
+    lu.DummyRepository[job_result.JobResultDTO],
 ):
     def __init__(
         self,
@@ -114,10 +115,14 @@ class DummyJobRepository(
         )
         return value_objects.Timestamp(last_successful_run.ts)
 
+    @classmethod
+    def interface(cls) -> typing.Type[job_repository.JobRepository]:
+        return job_repository.JobRepository
+
 
 class DummyJobLogRepository(
     job_log_repository.JobLogRepository,
-    resources.DummyRepository[job_log_entry.JobLogEntryDTO],
+    lu.DummyRepository[job_log_entry.JobLogEntryDTO],
 ):
     def __init__(
         self,
@@ -135,10 +140,14 @@ class DummyJobLogRepository(
         self._current_state = [e for e in self.all() if e.ts > cutoff]
         return len(self._current_state)
 
+    @classmethod
+    def interface(cls) -> typing.Type[job_log_repository.JobLogRepository]:
+        return job_log_repository.JobLogRepository
+
 
 class DummyBatchRepository(
     batch_repository.BatchRepository,
-    resources.DummyRepository[batch.BatchDTO],
+    lu.DummyRepository[batch.BatchDTO],
 ):
     def __init__(
         self,
@@ -156,14 +165,14 @@ class DummyBatchRepository(
     def get_latest(self) -> typing.Optional[batch.BatchDTO]:
         return sorted(self._current_state, key=lambda e: e.ts)[-1]
 
+    @classmethod
+    def interface(cls) -> typing.Type[batch_repository.BatchRepository]:
+        return batch_repository.BatchRepository
+
 
 class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
-    def __init__(
-        self,
-        session_factory: orm.sessionmaker,
-        /,
-    ):
-        super().__init__(session_factory)
+    def __init__(self) -> None:
+        super().__init__()
 
     @property
     def batch_repo(self) -> batch_repository.BatchRepository:
@@ -172,6 +181,22 @@ class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
     @property
     def batch_log_repo(self) -> batch_log_repository.BatchLogRepository:
         return self.get_resource(batch_log_repository.BatchLogRepository)  # type: ignore
+
+    def create_resources(
+        self, shared_resources: lu.SharedResources
+    ) -> typing.Iterable[lu.Resource[typing.Any]]:
+        return {
+            DummyBatchRepository(),
+            DummyBatchLogRepository(),
+            DummyJobRepository(),
+            DummyJobLogRepository(),
+            static_timestamp_adapter(datetime.datetime(2020, 1, 1)),
+        }
+
+    def create_shared_resources(
+        self,
+    ) -> typing.List[lu.SharedResource[typing.Any]]:
+        return []
 
     @property
     def job_repo(self) -> job_repository.JobRepository:
@@ -184,15 +209,6 @@ class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
     @property
     def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
         return self.get_resource(timestamp_adapter.TimestampAdapter)  # type: ignore
-
-    def create_resources(self) -> typing.AbstractSet[resources.Resource[typing.Any]]:
-        return {
-            DummyBatchRepository(),
-            DummyBatchLogRepository(),
-            DummyJobRepository(),
-            DummyJobLogRepository(),
-            static_timestamp_adapter(datetime.datetime(2020, 1, 1)),
-        }
 
 
 @pytest.fixture
@@ -211,12 +227,12 @@ def dummy_job_log_entry_repository() -> DummyJobLogRepository:
 
 
 @pytest.fixture
-def dummy_admin_uow(session_factory: orm.sessionmaker) -> DummyAdminUnitOfWork:
-    return DummyAdminUnitOfWork(session_factory)
+def dummy_admin_uow() -> DummyAdminUnitOfWork:
+    return DummyAdminUnitOfWork()
 
 
 @pytest.fixture(scope="session")
-def postgres_db() -> Engine:
+def postgres_db() -> sa.engine.Engine:
     user = "tester"
     db_name = "testdb"
     pwd = "abc123"
@@ -225,13 +241,15 @@ def postgres_db() -> Engine:
     port = 5432
     uri = f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
     print(f"{uri=}")
-    engine = create_engine(uri)
+    engine = sa.create_engine(uri)
     metadata.create_all(engine)
     return engine
 
 
 @pytest.fixture
-def postgres_session(postgres_db: Engine) -> typing.Generator[sessionmaker, None, None]:
+def postgres_session(
+    postgres_db: sa.engine.Engine,
+) -> typing.Generator[orm.sessionmaker, None, None]:
     start_mappers()
-    yield sessionmaker(bind=postgres_db)()
-    clear_mappers()
+    yield orm.sessionmaker(bind=postgres_db)()
+    orm.clear_mappers()

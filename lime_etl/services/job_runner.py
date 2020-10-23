@@ -2,13 +2,14 @@ import datetime
 import traceback
 import typing
 
+import lime_uow as lu
+
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
     exceptions,
     job_result,
     job_spec,
     job_test_result,
-    shared_resource,
     value_objects,
 )
 from lime_etl.services import admin_unit_of_work, job_logging_service
@@ -20,12 +21,10 @@ class JobRunner(typing.Protocol):
         *,
         admin_uow: admin_unit_of_work.AdminUnitOfWork,
         batch_id: value_objects.UniqueId,
+        batch_uow: lu.UnitOfWork,
         job: job_spec.JobSpec,
         job_id: value_objects.UniqueId,
         logger: job_logging_service.AbstractJobLoggingService,
-        resources: typing.Mapping[
-            value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-        ],
         skip_tests: bool,
         ts_adapter: timestamp_adapter.TimestampAdapter,
     ) -> job_result.JobResult:
@@ -34,24 +33,22 @@ class JobRunner(typing.Protocol):
 
 def default_job_runner(
     *,
+    admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
-    resources: typing.Mapping[
-        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-    ],
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
     skip_tests: bool,
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> job_result.JobResult:
     result = _run_job_pre_handlers(
+        admin_uow=admin_uow,
         batch_id=batch_id,
         job=job,
         job_id=job_id,
+        batch_uow=batch_uow,
         logger=logger,
-        resources=resources,
-        admin_uow=admin_uow,
         skip_tests=skip_tests,
         ts_adapter=ts_adapter,
     )
@@ -62,12 +59,12 @@ def default_job_runner(
         )
         if new_job:
             return default_job_runner(
+                admin_uow=admin_uow,
                 batch_id=batch_id,
                 job=new_job,
                 job_id=job_id,
+                batch_uow=batch_uow,
                 logger=logger,
-                resources=resources,
-                admin_uow=admin_uow,
                 skip_tests=skip_tests,
                 ts_adapter=ts_adapter,
             )
@@ -77,12 +74,12 @@ def default_job_runner(
         new_job = job.on_test_failure(result.test_results)
         if new_job:
             return default_job_runner(
+                admin_uow=admin_uow,
                 batch_id=batch_id,
                 job=new_job,
                 job_id=job_id,
+                batch_uow=batch_uow,
                 logger=logger,
-                resources=resources,
-                admin_uow=admin_uow,
                 skip_tests=skip_tests,
                 ts_adapter=ts_adapter,
             )
@@ -94,14 +91,12 @@ def default_job_runner(
 
 def _run_job_pre_handlers(
     *,
+    admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
-    resources: typing.Mapping[
-        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-    ],
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
     skip_tests: bool,
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> job_result.JobResult:
@@ -141,11 +136,10 @@ def _run_job_pre_handlers(
                 job=job,
                 job_id=job_id,
                 logger=logger,
-                resources=resources,
-                admin_uow=admin_uow,
                 skip_tests=skip_tests,
                 start_time=start_time,
                 ts_adapter=ts_adapter,
+                batch_uow=batch_uow,
             )
             logger.log_info(f"Finished running [{job.job_name.value}].")
             return result
@@ -154,26 +148,22 @@ def _run_job_pre_handlers(
 def _run_jobs_with_tests(
     *,
     batch_id: value_objects.UniqueId,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
-    resources: typing.Mapping[
-        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-    ],
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
     skip_tests: bool,
     start_time: value_objects.Timestamp,
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> job_result.JobResult:
     result, execution_millis = _run_with_retry(
-        admin_uow=admin_uow,
         job=job,
         logger=logger,
         max_retries=job.max_retries.value,
-        resources=resources,
         retries_so_far=0,
         start_time=start_time,
         ts_adapter=ts_adapter,
+        batch_uow=batch_uow,
     )
     if result.is_success:
         logger.log_info(f"[{job.job_name.value}] finished successfully.")
@@ -184,14 +174,7 @@ def _run_jobs_with_tests(
         else:
             logger.log_info(f"Running the tests for [{job.job_name.value}]...")
             test_start_time = datetime.datetime.now()
-            if isinstance(job, job_spec.AdminJobSpec):
-                test_results = job.test(logger=logger, admin_uow=admin_uow)
-            elif isinstance(job, job_spec.ETLJobSpec):
-                test_results = job.test(logger=logger, resources=resources)
-            else:
-                raise ValueError(
-                    f"Expected either an AdminJobSpec or an ETLJobSpec, but got {job!r}"
-                )
+            test_results = job.test(batch_uow=batch_uow, logger=logger)
             test_execution_millis = int(
                 (datetime.datetime.now() - test_start_time).total_seconds() * 1000
             )
@@ -243,25 +226,18 @@ def _run_jobs_with_tests(
 
 
 def _run_with_retry(
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
+    *,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     logger: job_logging_service.AbstractJobLoggingService,
     max_retries: int,
-    resources: typing.Mapping[
-        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-    ],
     retries_so_far: int,
     start_time: value_objects.Timestamp,
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> typing.Tuple[value_objects.Result, value_objects.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = _run(
-            job=job,
-            logger=logger,
-            resources=resources,
-            admin_uow=admin_uow,
-        )
+        result = job.run(batch_uow=batch_uow, logger=logger) or value_objects.Result.success()
         end_time = ts_adapter.now()
         execution_millis = value_objects.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time
@@ -272,38 +248,16 @@ def _run_with_retry(
         if max_retries > retries_so_far:
             logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
             return _run_with_retry(
-                admin_uow=admin_uow,
                 job=job,
                 logger=logger,
                 max_retries=max_retries,
-                resources=resources,
                 retries_so_far=retries_so_far + 1,
                 start_time=start_time,
                 ts_adapter=ts_adapter,
+                batch_uow=batch_uow,
             )
         else:
             logger.log_info(
                 f"[{job.job_name.value}] failed after {max_retries} retries."
             )
             raise
-
-
-def _run(
-    job: job_spec.JobSpec,
-    logger: job_logging_service.AbstractJobLoggingService,
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
-    resources: typing.Mapping[
-        value_objects.ResourceName, shared_resource.SharedResource[typing.Any]
-    ],
-) -> value_objects.Result:
-    if isinstance(job, job_spec.AdminJobSpec):
-        return job.run(admin_uow=admin_uow, logger=logger) or value_objects.Result.success()
-    elif isinstance(job, job_spec.ETLJobSpec):
-        return (
-            job.run(resources=resources, logger=logger)
-            or value_objects.Result.success()
-        )
-    else:
-        raise exceptions.InvalidJobSpec(
-            f"Expected an instance of AdminJobSpec or ETLJobSpec, but got {job!r}."
-        )

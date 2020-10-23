@@ -1,21 +1,20 @@
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import typing
-from dataclasses import dataclass
-from typing import FrozenSet, List, Optional
 
 from lime_etl.domain import exceptions, job_test_result, value_objects
 
 
-@dataclass(unsafe_hash=True)
+@dataclasses.dataclass(unsafe_hash=True)
 class JobResultDTO:
     id: str
     batch_id: str
     job_name: str
-    test_results: List[job_test_result.JobTestResultDTO]
+    test_results: typing.List[job_test_result.JobTestResultDTO]
     execution_millis: typing.Optional[int]
-    execution_error_occurred:typing.Optional[bool]
+    execution_error_occurred: typing.Optional[bool]
     execution_error_message: typing.Optional[str]
     running: bool
     ts: datetime.datetime
@@ -46,12 +45,12 @@ class JobResultDTO:
         )
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class JobResult:
     id: value_objects.UniqueId
     batch_id: value_objects.UniqueId
     job_name: value_objects.JobName
-    test_results: FrozenSet[job_test_result.JobTestResult]
+    test_results: typing.FrozenSet[job_test_result.JobTestResult]
     execution_millis: typing.Optional[value_objects.ExecutionMillis]
     execution_success_or_failure: typing.Optional[value_objects.Result]
     running: value_objects.Flag

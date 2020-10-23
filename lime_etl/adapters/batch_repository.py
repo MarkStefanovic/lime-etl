@@ -2,15 +2,15 @@ import abc
 import datetime
 import typing
 
-from lime_uow import resources
-from sqlalchemy import desc
+import lime_uow as lu
+import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import batch, value_objects
 
 
-class BatchRepository(resources.Repository[batch.BatchDTO], abc.ABC):
+class BatchRepository(lu.Repository[batch.BatchDTO], abc.ABC):
     @abc.abstractmethod
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep, /) -> int:
         raise NotImplementedError
@@ -21,7 +21,7 @@ class BatchRepository(resources.Repository[batch.BatchDTO], abc.ABC):
 
 
 class SqlAlchemyBatchRepository(
-    BatchRepository, resources.SqlAlchemyRepository[batch.BatchDTO]
+    BatchRepository, lu.SqlAlchemyRepository[batch.BatchDTO]
 ):
     def __init__(
         self,
@@ -52,6 +52,10 @@ class SqlAlchemyBatchRepository(
         # noinspection PyTypeChecker
         return (
             self.session.query(batch.BatchDTO)
-            .order_by(desc(batch.BatchDTO.ts))  # type: ignore
+            .order_by(sa.desc(batch.BatchDTO.ts))  # type: ignore
             .first()
         )
+
+    @classmethod
+    def interface(cls) -> typing.Type[BatchRepository]:
+        return BatchRepository

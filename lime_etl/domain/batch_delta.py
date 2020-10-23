@@ -1,11 +1,11 @@
-from dataclasses import dataclass
+import dataclasses
 
 import typing
 
 from lime_etl.domain import batch, value_objects
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class BatchDelta:
     current_results: batch.Batch
     previous_results: typing.Optional[batch.Batch]

@@ -1,23 +1,22 @@
 from __future__ import annotations
 
+import dataclasses
 import datetime
-from dataclasses import dataclass
-from typing import Optional
-
+import typing
 
 from lime_etl.domain import value_objects
 
 
-@dataclass(unsafe_hash=True)
+@dataclasses.dataclass(unsafe_hash=True)
 class JobTestResultDTO:
     id: str
     job_id: str
     test_name: str
     test_passed: bool
-    test_failure_message: Optional[str]
+    test_failure_message: typing.Optional[str]
     execution_millis: int
     execution_error_occurred: bool
-    execution_error_message: Optional[str]
+    execution_error_message: typing.Optional[str]
     ts: datetime.datetime
 
     def to_domain(self) -> JobTestResult:
@@ -46,7 +45,7 @@ class JobTestResultDTO:
         )
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class JobTestResult:
     id: value_objects.UniqueId
     job_id: value_objects.UniqueId
@@ -78,7 +77,7 @@ class JobTestResult:
         )
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SimpleJobTestResult:
     test_name: value_objects.TestName
     test_success_or_failure: value_objects.Result

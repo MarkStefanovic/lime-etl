@@ -4,19 +4,19 @@ import datetime
 import enum
 import re
 import warnings
-from typing import Any, Optional, Union, cast
+import typing
 from uuid import uuid4
 
 
 class ValueObject:
     __slots__ = ("value",)
 
-    def __init__(self, value: Any, /):
+    def __init__(self, value: typing.Any, /):
         self.value = value
 
     def __eq__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
-            return self.value == cast(ValueObject, other).value
+            return self.value == typing.cast(ValueObject, other).value
         else:
             return NotImplemented
 
@@ -29,25 +29,25 @@ class ValueObject:
 
     def __lt__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
-            return self.value < cast(ValueObject, other).value
+            return self.value < typing.cast(ValueObject, other).value
         else:
             return NotImplemented
 
     def __le__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
-            return self.value <= cast(ValueObject, other).value
+            return self.value <= typing.cast(ValueObject, other).value
         else:
             return NotImplemented
 
     def __gt__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
-            return self.value > cast(ValueObject, other).value
+            return self.value > typing.cast(ValueObject, other).value
         else:
             return NotImplemented
 
     def __ge__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
-            return self.value >= cast(ValueObject, other).value
+            return self.value >= typing.cast(ValueObject, other).value
         else:
             return NotImplemented
 
@@ -132,7 +132,7 @@ class Failure(ValueObject):
 
 
 class Result(ValueObject):
-    def __init__(self, value: Union[Failure, Success], /) -> None:
+    def __init__(self, value: typing.Union[Failure, Success], /) -> None:
         if value is None:
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got None."
@@ -165,7 +165,7 @@ class Result(ValueObject):
             )
 
     @property
-    def failure_message_or_none(self) -> Optional[str]:
+    def failure_message_or_none(self) -> typing.Optional[str]:
         if self.is_failure:
             return self.value.value
         else:
@@ -210,7 +210,7 @@ class UniqueId(ValueObject):
 
 
 class SchemaName(ValueObject):
-    def __init__(self, value: Optional[str], /):
+    def __init__(self, value: typing.Optional[str], /):
         if value is None:
             ...
         elif isinstance(value, str):
@@ -363,53 +363,6 @@ class Timestamp(ValueObject):
         return Timestamp(datetime.datetime.now())
 
 
-class SMTPServer(_NonEmptyStr):
-    ...
-
-
-class SMTPPort(_PositiveInt):
-    ...
-
-
-class EmailAddress(ValueObject):
-    def __init__(self, value: str, /):
-        if value is None:
-            raise ValueError(
-                f"{self.__class__.__name__} value is required, but got None."
-            )
-        elif isinstance(value, str):
-            if (
-                re.match(r"^[a-zA-Z0-9]+[._]?[a-zA-Z0-9]+[@]\w+[.]\w{2,3}$", value)
-                is None
-            ):
-                raise ValueError(f"{value!r} is not a valid EmailAddress.")
-        else:
-            raise TypeError(
-                f"{self.__class__.__name__} expects a str, but got {value!r}"
-            )
-
-        super().__init__(value)
-
-
-class EmailSubject(ValueObject):
-    def __init__(self, value: str, /):
-        if value is None:
-            raise ValueError(
-                f"{self.__class__.__name__} value is required, but got None."
-            )
-        elif isinstance(value, str):
-            if len(value) < 3 or len(value) > 200:
-                raise ValueError(
-                    f"{self.__class__.__name__} must be between 3 and 200 characters long, but got {value!r}."
-                )
-        else:
-            raise TypeError(
-                f"{self.__class__.__name__} expects a str, but got {value!r}"
-            )
-
-        super().__init__(value)
-
-
 class Password(ValueObject):
     def __init__(self, value: str, /):
         if value is None:
@@ -433,10 +386,6 @@ class Password(ValueObject):
 
     def __str__(self) -> str:
         return "*" * 10
-
-
-class EmailMsg(_NonEmptyStr):
-    ...
 
 
 class LogLevelOption(enum.Enum):
@@ -504,7 +453,7 @@ class LogMessage(ValueObject):
 
 
 class SecondsSinceLastRefresh(ValueObject):
-    def __init__(self, value: Optional[int], /):
+    def __init__(self, value: typing.Optional[int], /):
         if value is None:
             ...
         elif isinstance(value, int):

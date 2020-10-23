@@ -2,14 +2,14 @@ import datetime
 import typing
 from typing import List
 
-from lime_etl.adapters import (
-    timestamp_adapter,
-)
+import lime_uow as lu
+
+from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import job_spec, job_test_result, value_objects
 from lime_etl.services import admin_unit_of_work, job_logging_service
 
 
-class DeleteOldLogs(job_spec.AdminJobSpec):
+class DeleteOldLogs(job_spec.JobSpec):
     def __init__(
         self,
         days_to_keep: value_objects.DaysToKeep,
@@ -28,12 +28,12 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
 
     def on_execution_error(
         self, error_message: str
-    ) -> typing.Optional[job_spec.AdminJobSpec]:
+    ) -> typing.Optional[job_spec.JobSpec]:
         return None
 
     def on_test_failure(
         self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
-    ) -> typing.Optional[job_spec.AdminJobSpec]:
+    ) -> typing.Optional[job_spec.JobSpec]:
         return None
 
     @property
@@ -50,9 +50,10 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
 
     def run(
         self,
-        admin_uow: admin_unit_of_work.AdminUnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
+        admin_uow: lu.UnitOfWork,
     ) -> value_objects.Result:
+        assert isinstance(admin_uow, admin_unit_of_work.AdminUnitOfWork)
         with admin_uow as uow:
             uow.batch_log_repo.delete_old_entries(days_to_keep=self._days_to_keep)
             logger.log_info(
@@ -60,24 +61,24 @@ class DeleteOldLogs(job_spec.AdminJobSpec):
             )
 
             uow.job_log_repo.delete_old_entries(days_to_keep=self._days_to_keep)
-            uow.save()
             logger.log_info(
                 f"Deleted job log entries older than {self._days_to_keep.value} days old."
             )
 
             uow.batch_repo.delete_old_entries(self._days_to_keep)
-            admin_uow.save()
             logger.log_info(
                 f"Deleted batch results older than {self._days_to_keep.value} days old."
             )
+            uow.save()
 
         return value_objects.Result.success()
 
     def test(
         self,
-        admin_uow: admin_unit_of_work.AdminUnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
+        admin_uow: lu.UnitOfWork,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
+        assert isinstance(admin_uow, admin_unit_of_work.AdminUnitOfWork)
         cutoff_date = datetime.datetime.combine(
             (
                 self._ts_adapter.now().value

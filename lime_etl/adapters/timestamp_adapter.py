@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import abc
 import datetime
+import typing
 
-from lime_uow import resources
+import lime_uow as lu
 
 from lime_etl.domain import value_objects
 
 
-class TimestampAdapter(resources.Resource[value_objects.Timestamp], abc.ABC):
+class TimestampAdapter(lu.Resource[value_objects.Timestamp], abc.ABC):
     @abc.abstractmethod
     def now(self) -> value_objects.Timestamp:
         raise NotImplementedError
@@ -25,7 +26,11 @@ class LocalTimestampAdapter(TimestampAdapter):
     def close(self) -> None:
         pass
 
-    def open(self) -> resources.Resource[value_objects.Timestamp]:
+    @classmethod
+    def interface(cls) -> typing.Type[TimestampAdapter]:
+        return TimestampAdapter
+
+    def open(self) -> lu.Resource[value_objects.Timestamp]:
         return self
 
     def rollback(self) -> None:

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import typing
 
+import lime_uow as lu
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
-from lime_etl.adapters import orm, timestamp_adapter
-from lime_etl.domain import batch_delta, job_spec, shared_resource, value_objects
+from lime_etl.adapters import admin_session, orm, timestamp_adapter
+from lime_etl.domain import batch, job_spec, value_objects
 from lime_etl.services import admin_unit_of_work, batch_logging_service, batch_runner
 from lime_etl.services.admin import delete_old_logs
 
@@ -17,7 +18,7 @@ def run_admin(
     schema: typing.Optional[str] = "etl",
     skip_tests: bool = False,
     days_logs_to_keep: int = 3,
-) -> batch_delta.BatchDelta:
+) -> batch.Batch:
     days_to_keep = value_objects.DaysToKeep(days_logs_to_keep)
     if schema:
         orm.set_schema(schema=value_objects.SchemaName(schema))
@@ -36,23 +37,25 @@ def run_admin(
         session=session_factory(),
         ts_adapter=ts_adapter,
     )
-    uow = admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
-        session_factory=session_factory,
-        ts_adapter=ts_adapter,
-    )
-    result: batch_delta.BatchDelta = batch_runner.run(
-        batch_name=value_objects.BatchName("admin"),
-        admin_uow=uow,
-        batch_id=batch_id,
-        jobs=[
-            delete_old_logs.DeleteOldLogs(days_to_keep=days_to_keep),
-        ],
-        logger=logger,
-        resources=[],
-        skip_tests=skip_tests,
-        ts_adapter=ts_adapter,
-    )
-    return result
+    with lu.SharedResources(
+        admin_session.SqlAlchemyAdminSession(session_factory)
+    ) as shared_resources:
+        uow = admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
+            shared_resources=shared_resources,
+            ts_adapter=ts_adapter,
+        )
+        return batch_runner.run(
+            batch_name=value_objects.BatchName("admin"),
+            admin_uow=uow,
+            batch_id=batch_id,
+            batch_uow=uow,
+            jobs=[
+                delete_old_logs.DeleteOldLogs(days_to_keep=days_to_keep),
+            ],
+            logger=logger,
+            skip_tests=skip_tests,
+            ts_adapter=ts_adapter,
+        )
 
 
 def run(
@@ -60,12 +63,10 @@ def run(
     batch_name: str,
     engine_or_uri: typing.Union[sa.engine.Engine, str],
     jobs: typing.Iterable[job_spec.JobSpec],
+    batch_uow: lu.UnitOfWork = lu.PlaceholderUnitOfWork(),
     schema: typing.Optional[str] = None,
-    resources: typing.Collection[
-        shared_resource.SharedResource[typing.Any]
-    ] = frozenset(),
     skip_tests: bool = False,
-) -> batch_delta.BatchDelta:
+) -> batch.Batch:
     name = value_objects.BatchName(batch_name)
     if schema:
         orm.set_schema(schema=value_objects.SchemaName(schema))
@@ -78,23 +79,27 @@ def run(
     orm.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     ts_adapter = timestamp_adapter.LocalTimestampAdapter()
-    admin_uow = admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
-        session_factory=session_factory,
-        ts_adapter=ts_adapter,
-    )
-    batch_id = value_objects.UniqueId.generate()
-    logger = batch_logging_service.BatchLoggingService(
-        batch_id=batch_id,
-        session=session_factory(),
-        ts_adapter=ts_adapter,
-    )
-    return batch_runner.run(
-        batch_name=name,
-        admin_uow=admin_uow,
-        batch_id=batch_id,
-        jobs=list(jobs),
-        logger=logger,
-        resources=resources,
-        skip_tests=skip_tests,
-        ts_adapter=ts_adapter,
-    )
+    with lu.SharedResources(
+        admin_session.SqlAlchemyAdminSession(session_factory)
+    ) as shared_resources:
+        admin_uow = admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
+            shared_resources=shared_resources,
+            ts_adapter=ts_adapter,
+        )
+        batch_id = value_objects.UniqueId.generate()
+        jobs = list(jobs)
+        logger = batch_logging_service.BatchLoggingService(
+            batch_id=batch_id,
+            session=session_factory(),
+            ts_adapter=ts_adapter,
+        )
+        return batch_runner.run(
+            admin_uow=admin_uow,
+            batch_name=name,
+            batch_id=batch_id,
+            batch_uow=batch_uow,
+            jobs=jobs,
+            logger=logger,
+            skip_tests=skip_tests,
+            ts_adapter=ts_adapter,
+        )

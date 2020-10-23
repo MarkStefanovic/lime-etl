@@ -4,8 +4,7 @@ import abc
 import datetime
 import typing
 
-import sqlalchemy as sa
-from lime_uow import resources
+import lime_uow as lu
 from sqlalchemy import orm
 
 from lime_etl.adapters import timestamp_adapter
@@ -13,7 +12,7 @@ from lime_etl.domain import batch_log_entry, value_objects
 
 
 class BatchLogRepository(
-    resources.Repository[batch_log_entry.BatchLogEntryDTO],
+    lu.Repository[batch_log_entry.BatchLogEntryDTO],
     abc.ABC,
 ):
     @abc.abstractmethod
@@ -27,7 +26,7 @@ class BatchLogRepository(
 
 class SqlAlchemyBatchLogRepository(
     BatchLogRepository,
-    resources.SqlAlchemyRepository[batch_log_entry.BatchLogEntryDTO],
+    lu.SqlAlchemyRepository[batch_log_entry.BatchLogEntryDTO],
 ):
     def __init__(
         self,
@@ -60,3 +59,7 @@ class SqlAlchemyBatchLogRepository(
             return None
         else:
             return earliest_entry.ts
+
+    @classmethod
+    def interface(cls) -> typing.Type[BatchLogRepository]:
+        return BatchLogRepository

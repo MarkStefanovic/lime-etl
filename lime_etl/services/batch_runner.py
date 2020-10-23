@@ -1,18 +1,16 @@
-import collections
 import itertools
 import traceback
 import typing
-from typing import List
+
+import lime_uow as lu
 
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
     batch,
-    batch_delta,
     exceptions,
     job_dependency_errors,
     job_result,
     job_spec,
-    shared_resource,
     value_objects,
 )
 from lime_etl.services import (
@@ -27,12 +25,12 @@ def run(
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
     batch_name: value_objects.BatchName,
+    batch_uow: lu.UnitOfWork,
     jobs: typing.Collection[job_spec.JobSpec],
     logger: batch_logging_service.BatchLoggingService,
-    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
     skip_tests: bool,
     ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> batch_delta.BatchDelta:
+) -> batch.Batch:
     start_time = ts_adapter.now()
     try:
         dep_results = check_dependencies(jobs)
@@ -40,7 +38,6 @@ def run(
             raise exceptions.DependencyErrors(dep_results)
 
         with admin_uow as uow:
-            previous_results = uow.batch_repo.get_latest()
             new_batch = batch.Batch(
                 id=batch_id,
                 name=batch_name,
@@ -53,14 +50,14 @@ def run(
             uow.batch_repo.add(new_batch.to_dto())
             uow.save()
 
-        logger.log_info(f"Staring batch [{batch_id.value}]...")
+        logger.log_info(f"Staring batch [{batch_name.value}]...")
         result = _run_batch(
             admin_uow=admin_uow,
             batch_id=batch_id,
             batch_logger=logger,
             batch_name=batch_name,
             jobs=jobs,
-            resources=resources,
+            batch_uow=batch_uow,
             skip_tests=skip_tests,
             start_time=start_time,
             ts_adapter=ts_adapter,
@@ -70,17 +67,8 @@ def run(
             uow.batch_repo.update(result.to_dto())
             uow.save()
 
-        logger.log_info(f"Batch [{batch_id.value}] finished.")
-        if previous_results:
-            previous_results_domain: typing.Optional[
-                batch.Batch
-            ] = previous_results.to_domain()
-        else:
-            previous_results_domain = None
-        return batch_delta.BatchDelta(
-            current_results=result,
-            previous_results=previous_results_domain,
-        )
+        logger.log_info(f"Batch [{batch_name}] finished.")
+        return result
     except Exception as e:
         logger.log_error(str(e))
         end_time = ts_adapter.now()
@@ -157,69 +145,30 @@ def _check_for_duplicate_job_names(
         raise exceptions.DuplicateJobNamesError(duplicates)
 
 
-def _check_for_missing_resources(
-    jobs: typing.Collection[job_spec.JobSpec],
-    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
-) -> None:
-    resource_names = {r.name for r in resources}
-    missing_resources: typing.Mapping[
-        value_objects.JobName, typing.List[value_objects.ResourceName]
-    ] = collections.defaultdict(list)
-    for job in jobs:
-        if isinstance(job, job_spec.ETLJobSpec):
-            for resource_name in job.resources_needed:
-                if resource_name not in resource_names:
-                    missing_resources[job.job_name].append(resource_name)
-
-    if missing_resources:
-        raise exceptions.MissingResourcesError(missing_resources)
-
-
-def _is_resource_still_needed(
-    remaining_jobs: typing.Collection[job_spec.JobSpec],
-    resource_name: value_objects.ResourceName,
-) -> bool:
-    return any(
-        isinstance(job, job_spec.ETLJobSpec) and resource_name in job.resources_needed
-        for job in remaining_jobs
-    )
-
-
 def _run_batch(
-    batch_id: value_objects.UniqueId,
-    batch_name: value_objects.BatchName,
-    batch_logger: batch_logging_service.AbstractBatchLoggingService,
-    jobs: typing.Collection[job_spec.JobSpec],
-    resources: typing.Collection[shared_resource.SharedResource[typing.Any]],
+    *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
+    batch_id: value_objects.UniqueId,
+    batch_logger: batch_logging_service.AbstractBatchLoggingService,
+    batch_name: value_objects.BatchName,
+    batch_uow: lu.UnitOfWork,
+    jobs: typing.Collection[job_spec.JobSpec],
     skip_tests: bool,
     start_time: value_objects.Timestamp,
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> batch.Batch:
-    _check_for_missing_resources(jobs=jobs, resources=resources)
     _check_for_duplicate_job_names(jobs)
 
-    job_results: List[job_result.JobResult] = []
-    resource_managers = {
-        resource.name: shared_resource.ResourceManager(resource)
-        for resource in resources
-    }
-    job_resource_managers = {
-        job.job_name: {
-            resource_name: resource_managers[resource_name]
-            for resource_name in job.resources_needed
-        }
-        for job in jobs
-        if isinstance(job, job_spec.ETLJobSpec)
-    }
-
+    job_results: typing.List[job_result.JobResult] = []
     for ix, job in enumerate(jobs):
         current_ts = ts_adapter.now()
         with admin_uow as uow:
             last_ts = uow.job_repo.get_last_successful_ts(job.job_name)
 
         if last_ts:
-            seconds_since_last_refresh = (current_ts.value - start_time).total_seconds()
+            seconds_since_last_refresh = (
+                current_ts.value - last_ts.value
+            ).total_seconds()
             if seconds_since_last_refresh < job.seconds_between_refreshes.value:
                 batch_logger.log_info(
                     f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
@@ -244,15 +193,7 @@ def _run_batch(
             uow.job_repo.add(result.to_dto())
             uow.save()
 
-        batch_logger.log_info(f"Opening resources for job [{job.job_name}]...")
-        if isinstance(job, job_spec.ETLJobSpec):
-            job_resources = {
-                name: mgr.open()
-                for name, mgr in job_resource_managers[job.job_name].items()
-            }
-        else:
-            job_resources = {}
-
+        # noinspection PyBroadException
         try:
             result = job_runner.default_job_runner(
                 admin_uow=admin_uow,
@@ -260,15 +201,14 @@ def _run_batch(
                 logger=job_logger,
                 batch_id=batch_id,
                 job_id=job_id,
-                resources=job_resources,
+                batch_uow=batch_uow,
                 skip_tests=skip_tests,
                 ts_adapter=ts_adapter,
             )
         except Exception as e:
             millis = ts_adapter.get_elapsed_time(start_time)
-            err_msg =  f"An exception occurred while running [{job.job_name}]: {traceback.format_exc(10)}."
-            err = value_objects.Result.failure(err_msg)
-            batch_logger.log_error(err_msg)
+            err = value_objects.Result.failure(str(e))
+            batch_logger.log_error(str(traceback.format_exc(10)))
             result = job_result.JobResult(
                 id=job_id,
                 batch_id=batch_id,
@@ -285,19 +225,6 @@ def _run_batch(
             with admin_uow as uow:
                 uow.job_repo.update(result.to_dto())
                 admin_uow.save()
-
-        if isinstance(job, job_spec.ETLJobSpec):
-            # clean up resources no longer needed
-            remaining_jobs = list(jobs)[ix + 1 :]
-            for resource_name, resource_manager in job_resource_managers[
-                job.job_name
-            ].items():
-                resource_needed = _is_resource_still_needed(
-                    remaining_jobs=remaining_jobs,
-                    resource_name=resource_name,
-                )
-                if not resource_needed:
-                    resource_manager.close()
 
     end_time = ts_adapter.now()
 
