@@ -4,7 +4,6 @@ import abc
 import dataclasses
 import typing
 
-import lime_uow as lu
 import pytest
 import sqlalchemy as sa
 from sqlalchemy import orm
@@ -27,18 +26,18 @@ class Message:
     message: str
 
 
-# class MessageDbSession(lu.SqlAlchemySession):
+# class MessageDbSession(le.SqlAlchemySession):
 #     def __init__(self, session_factory: orm.sessionmaker, /):
 #         super().__init__(session_factory)
 
 
-class AbstractMessageRepo(lu.Repository[Message], abc.ABC):
+class AbstractMessageRepo(le.Repository[Message], abc.ABC):
     @property
     def entity_type(self) -> typing.Type[Message]:
         return Message
 
 
-class MessageRepo(AbstractMessageRepo, lu.SqlAlchemyRepository[Message]):
+class MessageRepo(AbstractMessageRepo, le.SqlAlchemyRepository[Message]):
     def __init__(self, session: orm.Session, /):
         super().__init__(session)
 
@@ -57,19 +56,14 @@ def messages_session_factory(
     orm.clear_mappers()
 
 
-# @pytest.fixture
-# def messages_shared_reources(messages_session_factory):
-#     return lu.SharedResources(lu.SqlAlchemySession(messages_session_factory))
-
-
-class MessageUOW(lu.UnitOfWork):
-    def __init__(self, shared_resources: lu.SharedResources):
+class MessageUOW(le.UnitOfWork):
+    def __init__(self, shared_resources: le.SharedResources):
         super().__init__(shared_resources)
 
     def create_resources(
-        self, shared_resources: lu.SharedResources
-    ) -> typing.Set[lu.Resource[typing.Any]]:
-        return {MessageRepo(shared_resources.get(lu.SqlAlchemySession))}
+        self, shared_resources: le.SharedResources
+    ) -> typing.Set[le.Resource[typing.Any]]:
+        return {MessageRepo(shared_resources.get(le.SqlAlchemySession))}
 
     @property
     def message_repo(self) -> MessageRepo:
@@ -90,7 +84,7 @@ class MessageJob(le.JobSpec):
     def run(
         self,
         logger: le.AbstractJobLoggingService,
-        batch_uow: lu.UnitOfWork,
+        batch_uow: le.UnitOfWork,
     ) -> le.Result:
         with batch_uow as uow:
             uow = typing.cast(MessageUOW, uow)
@@ -129,7 +123,7 @@ class MessageJob(le.JobSpec):
     def test(
         self,
         logger: le.AbstractJobLoggingService,
-        batch_uow: lu.UnitOfWork,
+        batch_uow: le.UnitOfWork,
     ) -> typing.List[le.SimpleJobTestResult]:
         with batch_uow as uow:
             uow = typing.cast(MessageUOW, uow)
@@ -176,8 +170,8 @@ def test_run_with_sqlite_using_default_parameters_happy_path(
             ],
         ),
     ]
-    shared_resources = lu.SharedResources(
-        lu.SqlAlchemySession(messages_session_factory)
+    shared_resources = le.SharedResources(
+        le.SqlAlchemySession(messages_session_factory)
     )
     actual = le.run(
         batch_name="test_batch",
@@ -277,8 +271,8 @@ def test_run_with_unresolved_dependencies(
             ],
         ),
     ]
-    shared_resources = lu.SharedResources(
-        lu.SqlAlchemySession(messages_session_factory)
+    shared_resources = le.SharedResources(
+        le.SqlAlchemySession(messages_session_factory)
     )
     with pytest.raises(le.DependencyErrors) as e:
         le.run(
@@ -354,8 +348,8 @@ def test_run_with_dependencies_out_of_order(
             ],
         ),
     ]
-    shared_resources = lu.SharedResources(
-        lu.SqlAlchemySession(messages_session_factory)
+    shared_resources = le.SharedResources(
+        le.SqlAlchemySession(messages_session_factory)
     )
     with pytest.raises(le.DependencyErrors) as e:
         le.run(
