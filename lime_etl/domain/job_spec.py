@@ -36,16 +36,18 @@ class JobSpec(abc.ABC):
     @abc.abstractmethod
     def run(
         self,
-        logger: job_logging_service.AbstractJobLoggingService,
+        /,
         batch_uow: lu.UnitOfWork,
+        logger: job_logging_service.AbstractJobLoggingService,
     ) -> value_objects.Result:
         raise NotImplementedError
 
     @abc.abstractmethod
     def test(
         self,
-        logger: job_logging_service.AbstractJobLoggingService,
+        /,
         batch_uow: lu.UnitOfWork,
+        logger: job_logging_service.AbstractJobLoggingService,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError
 

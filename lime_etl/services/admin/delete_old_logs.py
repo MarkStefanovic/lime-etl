@@ -50,8 +50,9 @@ class DeleteOldLogs(job_spec.JobSpec):
 
     def run(
         self,
-        logger: job_logging_service.AbstractJobLoggingService,
+        /,
         admin_uow: lu.UnitOfWork,
+        logger: job_logging_service.AbstractJobLoggingService,
     ) -> value_objects.Result:
         assert isinstance(admin_uow, admin_unit_of_work.AdminUnitOfWork)
         with admin_uow as uow:
@@ -75,8 +76,9 @@ class DeleteOldLogs(job_spec.JobSpec):
 
     def test(
         self,
-        logger: job_logging_service.AbstractJobLoggingService,
+        /,
         admin_uow: lu.UnitOfWork,
+        logger: job_logging_service.AbstractJobLoggingService,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         assert isinstance(admin_uow, admin_unit_of_work.AdminUnitOfWork)
         cutoff_date = datetime.datetime.combine(

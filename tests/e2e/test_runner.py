@@ -83,8 +83,8 @@ class MessageJob(le.JobSpec):
 
     def run(
         self,
-        logger: le.AbstractJobLoggingService,
         batch_uow: le.UnitOfWork,
+        logger: le.AbstractJobLoggingService,
     ) -> le.Result:
         with batch_uow as uow:
             uow = typing.cast(MessageUOW, uow)
@@ -122,8 +122,8 @@ class MessageJob(le.JobSpec):
 
     def test(
         self,
-        logger: le.AbstractJobLoggingService,
         batch_uow: le.UnitOfWork,
+        logger: le.AbstractJobLoggingService,
     ) -> typing.List[le.SimpleJobTestResult]:
         with batch_uow as uow:
             uow = typing.cast(MessageUOW, uow)
@@ -146,6 +146,18 @@ class MessageJob(le.JobSpec):
                         test_success_or_failure=le.Result.success(),
                     )
                 ]
+
+
+def test_run_admin(in_memory_db: sa.engine.Engine) -> None:
+    actual = le.run_admin(
+        engine_or_uri=in_memory_db,
+        schema=None,
+        skip_tests=False,
+        days_logs_to_keep=3,
+    )
+    assert actual.running == le.Flag(False)
+    assert actual.broken_jobs == frozenset()
+    assert len(actual.job_results) == 1
 
 
 def test_run_with_sqlite_using_default_parameters_happy_path(
