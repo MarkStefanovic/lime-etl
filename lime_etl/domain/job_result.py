@@ -110,3 +110,6 @@ class JobResult:
             running=self.running.value,
             ts=self.ts.value,
         )
+
+
+

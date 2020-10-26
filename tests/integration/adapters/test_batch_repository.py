@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from lime_etl.adapters import batch_repository
-from lime_etl.domain import batch, job_result, job_test_result, value_objects
+from lime_etl.domain import batch_result, job_result, job_test_result, value_objects
 from tests import conftest
 
 
@@ -29,7 +29,7 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
         running=value_objects.Flag(False),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
     )
-    new_batch = batch.Batch(
+    new_batch = batch_result.BatchResult(
         id=batch_id,
         name=value_objects.BatchName("test_batch"),
         execution_millis=value_objects.ExecutionMillis(10),
@@ -72,7 +72,7 @@ def test_sqlalchemy_batch_repository_update(
     repo = batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
-    new_batch = batch.Batch(
+    new_batch = batch_result.BatchResult(
         id=batch_id,
         name=value_objects.BatchName("test_batch"),
         execution_millis=None,
@@ -82,7 +82,7 @@ def test_sqlalchemy_batch_repository_update(
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     repo.add(new_batch.to_dto())
-    new_batch2 = batch.Batch(
+    new_batch2 = batch_result.BatchResult(
         id=batch_id,
         name=value_objects.BatchName("test_batch"),
         execution_millis=value_objects.ExecutionMillis(10),
@@ -204,7 +204,7 @@ def test_sqlalchemy_batch_repository_get_latest(session: Session) -> None:
         session=session, ts_adapter=ts_adapter
     )
     result = repo.get_latest()
-    expected = batch.BatchDTO(
+    expected = batch_result.BatchResultDTO(
         id="b2396d94bd55a455baf80a26209349d6",
         name="test_batch",
         execution_error_message=None,

@@ -9,7 +9,7 @@ from lime_etl.domain import exceptions, job_result, value_objects
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class BatchDTO:
+class BatchResultDTO:
     id: str
     name: str
     execution_error_message: typing.Optional[str]
@@ -19,7 +19,7 @@ class BatchDTO:
     running: bool
     ts: datetime.datetime
 
-    def to_domain(self) -> Batch:
+    def to_domain(self) -> BatchResult:
         results = frozenset(job.to_domain() for job in self.job_results)
         if self.running:
             execution_millis = None
@@ -33,7 +33,7 @@ class BatchDTO:
             else:
                 execution_success_or_failure = value_objects.Result.success()
 
-        return Batch(
+        return BatchResult(
             id=value_objects.UniqueId(self.id),
             name=value_objects.BatchName(self.name),
             execution_millis=execution_millis,
@@ -45,7 +45,7 @@ class BatchDTO:
 
 
 @dataclasses.dataclass(frozen=True)
-class Batch:
+class BatchResult:
     id: value_objects.UniqueId
     name: value_objects.BatchName
     job_results: typing.FrozenSet[job_result.JobResult]
@@ -86,7 +86,7 @@ class Batch:
     def broken_jobs(self) -> typing.Set[value_objects.JobName]:
         return {job.job_name for job in self.job_results if job.tests_failed}
 
-    def to_dto(self) -> BatchDTO:
+    def to_dto(self) -> BatchResultDTO:
         results = [j.to_dto() for j in self.job_results]
         if self.execution_success_or_failure is None:
             error_occurred = None
@@ -100,7 +100,7 @@ class Batch:
         else:
             execution_millis = self.execution_millis.value
 
-        return BatchDTO(
+        return BatchResultDTO(
             id=self.id.value,
             name=self.name.value,
             execution_millis=execution_millis,

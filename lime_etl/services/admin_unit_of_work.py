@@ -16,12 +16,6 @@ from lime_etl.adapters import (
 
 
 class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
-    def __enter__(self) -> AdminUnitOfWork:
-        return typing.cast(AdminUnitOfWork, super().__enter__())
-
-    def __exit__(self, *args) -> None:  # type: ignore
-        super().__exit__(*args)
-
     @property
     @abc.abstractmethod
     def batch_repo(self) -> batch_repository.BatchRepository:
@@ -40,6 +34,11 @@ class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
     @property
     @abc.abstractmethod
     def job_log_repo(self) -> job_log_repository.JobLogRepository:
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
         raise NotImplementedError
 
 

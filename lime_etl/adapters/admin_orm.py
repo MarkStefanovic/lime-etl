@@ -13,7 +13,7 @@ from sqlalchemy.orm import mapper, relationship
 from sqlalchemy.orm.base import _is_mapped_class  # type: ignore
 
 from lime_etl.domain import (
-    batch,
+    batch_result,
     job_result,
     job_log_entry,
     job_test_result,
@@ -115,7 +115,7 @@ def start_mappers() -> None:
             },
         )
         mapper(
-            batch.BatchDTO,
+            batch_result.BatchResultDTO,
             batches,
             properties={
                 "job_results": relationship(

@@ -4,11 +4,13 @@ import abc
 import dataclasses
 import typing
 
+import lime_uow as lu
 import pytest
 import sqlalchemy as sa
 from sqlalchemy import orm
 
 import lime_etl as le
+from tests import test_utils
 
 meta = sa.MetaData()
 
@@ -24,11 +26,6 @@ messages_table = sa.Table(
 class Message:
     id: int
     message: str
-
-
-# class MessageDbSession(le.SqlAlchemySession):
-#     def __init__(self, session_factory: orm.sessionmaker, /):
-#         super().__init__(session_factory)
 
 
 class AbstractMessageRepo(le.Repository[Message], abc.ABC):
@@ -73,27 +70,34 @@ class MessageUOW(le.UnitOfWork):
 class MessageJob(le.JobSpec):
     def __init__(
         self,
+        uow: MessageUOW,
         messages: typing.Iterable[Message],
         dependencies: typing.Iterable[str],
         job_name: str,
+        job_id: str,
     ):
+        self._uow = uow
         self._messages = list(messages)
-        self._dependencies = [le.JobName(n) for n in dependencies]
+        self._dependencies = tuple(le.JobName(n) for n in dependencies)
         self._job_name = le.JobName(job_name)
+        super().__init__(
+            job_name=le.JobName(job_name),
+            dependencies=[le.JobName(d) for d in dependencies],
+            job_id=le.UniqueId(job_id),
+            max_retries=le.MaxRetries(0),
+        )
 
     def run(
         self,
-        batch_uow: le.UnitOfWork,
         logger: le.AbstractJobLoggingService,
     ) -> le.Result:
-        with batch_uow as uow:
-            uow = typing.cast(MessageUOW, uow)
+        with self._uow as uow:
             uow.message_repo.add_all(self._messages)
             uow.save()
         return le.Result.success()
 
     @property
-    def dependencies(self) -> typing.List[le.JobName]:
+    def dependencies(self) -> typing.Tuple[le.JobName, ...]:
         return self._dependencies
 
     @property
@@ -109,8 +113,8 @@ class MessageJob(le.JobSpec):
         return None
 
     @property
-    def seconds_between_refreshes(self) -> le.SecondsBetweenRefreshes:
-        return le.SecondsBetweenRefreshes(300)
+    def min_seconds_between_refreshes(self) -> le.MinSecondsBetweenRefreshes:
+        return le.MinSecondsBetweenRefreshes(300)
 
     @property
     def timeout_seconds(self) -> le.TimeoutSeconds:
@@ -122,11 +126,9 @@ class MessageJob(le.JobSpec):
 
     def test(
         self,
-        batch_uow: le.UnitOfWork,
         logger: le.AbstractJobLoggingService,
     ) -> typing.List[le.SimpleJobTestResult]:
-        with batch_uow as uow:
-            uow = typing.cast(MessageUOW, uow)
+        with self._uow as uow:
             result = uow.message_repo.all()
             missing_messages = [msg for msg in self._messages if msg not in result]
             test_name = le.TestName("Messages saved")
@@ -148,9 +150,238 @@ class MessageJob(le.JobSpec):
                 ]
 
 
+class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
+    def __init__(
+        self,
+        batch_name: le.BatchName,
+        batch_id: le.UniqueId,
+        session_factory: orm.sessionmaker,
+    ):
+        self._session_factory = session_factory
+
+        super().__init__(
+            batch_name=batch_name,
+            batch_id=batch_id,
+        )
+
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+        return [
+            MessageJob(
+                uow=uow,
+                job_id="b" * 32,
+                job_name="hello_world_job",
+                dependencies=[],
+                messages=[
+                    Message(id=1, message="Hello"),
+                    Message(id=2, message="World"),
+                ],
+            ),
+            MessageJob(
+                uow=uow,
+                job_id="c" * 32,
+                job_name="hello_world_job2",
+                dependencies=["hello_world_job"],
+                messages=[
+                    Message(id=3, message="Have"),
+                    Message(id=4, message="Fun"),
+                ],
+            ),
+        ]
+
+    def create_shared_resource(self) -> lu.SharedResources:
+        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+
+    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
+        return MessageUOW(shared_resources)
+
+
+class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
+    def __init__(
+        self,
+        batch_name: le.BatchName,
+        batch_id: le.UniqueId,
+        session_factory: orm.sessionmaker,
+    ):
+        self._session_factory = session_factory
+
+        super().__init__(
+            batch_name=batch_name,
+            batch_id=batch_id,
+        )
+
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+        return [
+            MessageJob(
+                uow=uow,
+                job_id="b" * 32,
+                job_name="hello_world_job",
+                dependencies=[],
+                messages=[
+                    Message(id=1, message="Hello"),
+                    Message(id=2, message="World"),
+                ],
+            ),
+            MessageJob(
+                uow=uow,
+                job_id="c" * 32,
+                job_name="hello_world_job2",
+                dependencies=["hello_world_job3"],
+                messages=[
+                    Message(id=3, message="Have"),
+                    Message(id=4, message="Fun"),
+                ],
+            ),
+        ]
+
+    def create_shared_resource(self) -> lu.SharedResources:
+        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+
+    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
+        return MessageUOW(shared_resources)
+
+
+class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
+    def __init__(
+        self,
+        batch_name: le.BatchName,
+        batch_id: le.UniqueId,
+        session_factory: orm.sessionmaker,
+    ):
+        self._session_factory = session_factory
+
+        super().__init__(
+            batch_name=batch_name,
+            batch_id=batch_id,
+        )
+
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+        return [
+            MessageJob(
+                uow=uow,
+                job_name="hello_world_job2",
+                job_id="b" * 32,
+                dependencies=["hello_world_job"],
+                messages=[
+                    Message(id=1, message="Hello"),
+                    Message(id=2, message="World"),
+                ],
+            ),
+            MessageJob(
+                uow=uow,
+                job_name="hello_world_job",
+                job_id="c" * 32,
+                dependencies=[],
+                messages=[
+                    Message(id=3, message="Have"),
+                    Message(id=4, message="Fun"),
+                ],
+            ),
+        ]
+
+    def create_shared_resource(self) -> lu.SharedResources:
+        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+
+    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
+        return MessageUOW(shared_resources)
+
+
+class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
+    def __init__(
+        self,
+        batch_name: le.BatchName,
+        batch_id: le.UniqueId,
+        session_factory: orm.sessionmaker,
+    ):
+        self._session_factory = session_factory
+
+        super().__init__(
+            batch_name=batch_name,
+            batch_id=batch_id,
+        )
+
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+        return [
+            MessageJob(
+                uow=uow,
+                job_name="hello_world_job",
+                job_id="b" * 32,
+                dependencies=[],
+                messages=[
+                    Message(id=1, message="Hello"),
+                    Message(id=2, message="World"),
+                ],
+            ),
+            MessageJob(
+                uow=uow,
+                job_name="hello_world_job",
+                job_id="c" * 32,
+                dependencies=[],
+                messages=[
+                    Message(id=3, message="Have"),
+                    Message(id=4, message="Fun"),
+                ],
+            ),
+        ]
+
+    def create_shared_resource(self) -> lu.SharedResources:
+        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+
+    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
+        return MessageUOW(shared_resources)
+
+
+class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
+    def __init__(
+        self,
+        batch_name: le.BatchName,
+        batch_id: le.UniqueId,
+        db_uri: le.DbUri,
+    ):
+        self._db_uri = db_uri
+
+        super().__init__(
+            batch_name=batch_name,
+            batch_id=batch_id,
+        )
+
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+        return [
+            MessageJob(
+                uow=uow,
+                job_name="hello_world_job",
+                job_id="b" * 32,
+                dependencies=[],
+                messages=[
+                    Message(id=1, message="Hello"),
+                    Message(id=2, message="World"),
+                ],
+            ),
+            MessageJob(
+                uow=uow,
+                job_name="hello_world_job2",
+                job_id="c" * 32,
+                dependencies=["hello_world_job"],
+                messages=[
+                    Message(id=3, message="Have"),
+                    Message(id=4, message="Fun"),
+                ],
+            ),
+        ]
+
+    def create_shared_resource(self) -> lu.SharedResources:
+        engine = sa.create_engine(self._db_uri.value)
+        meta.create_all(bind=engine)
+        orm.mapper(Message, messages_table)
+        session_factory = orm.sessionmaker(bind=engine)
+        return le.SharedResources(le.SqlAlchemySession(session_factory))
+
+    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
+        return MessageUOW(shared_resources)
+
+
 def test_run_admin(in_memory_db: sa.engine.Engine) -> None:
     actual = le.run_admin(
-        engine_or_uri=in_memory_db,
+        admin_engine_or_uri=in_memory_db,
         schema=None,
         skip_tests=False,
         days_logs_to_keep=3,
@@ -164,49 +395,74 @@ def test_run_with_sqlite_using_default_parameters_happy_path(
     in_memory_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    jobs = [
-        MessageJob(
-            job_name="hello_world_job",
-            dependencies=[],
-            messages=[
-                Message(id=1, message="Hello"),
-                Message(id=2, message="World"),
-            ],
-        ),
-        MessageJob(
-            job_name="hello_world_job2",
-            dependencies=["hello_world_job"],
-            messages=[
-                Message(id=3, message="Have"),
-                Message(id=4, message="Fun"),
-            ],
-        ),
-    ]
-    shared_resources = le.SharedResources(
-        le.SqlAlchemySession(messages_session_factory)
+    batch = MessageBatchHappyPath(
+        batch_name=le.BatchName("test_batch"),
+        batch_id=le.UniqueId("a" * 32),
+        session_factory=messages_session_factory,
     )
-    actual = le.run(
-        batch_name="test_batch",
-        engine_or_uri=in_memory_db,
-        jobs=jobs,
-        batch_uow=MessageUOW(shared_resources),
+    actual = le.run_batch(
+        admin_engine_or_uri=in_memory_db,
+        admin_schema=None,
+        batch=batch,
     )
-    job_execution_results = [
-        jr.execution_success_or_failure for jr in actual.job_results
-    ]
-    assert all(
-        jr.execution_success_or_failure == le.Result.success()
-        for jr in actual.job_results
-    ), f"Expected all Success values, but got {job_execution_results}"
-    assert actual.job_names == {
-        le.JobName("hello_world_job"),
-        le.JobName("hello_world_job2"),
+    expected = {
+        "execution_error_message": None,
+        "execution_error_occurred": False,
+        "execution_millis": "positive",
+        "id": "32 chars",
+        "job_results": [
+            {
+                "batch_id": "32 chars",
+                "execution_error_message": None,
+                "execution_error_occurred": False,
+                "execution_millis": "positive",
+                "id": "32 chars",
+                "job_name": "hello_world_job",
+                "running": False,
+                "test_results": [
+                    {
+                        "execution_error_message": None,
+                        "execution_error_occurred": False,
+                        "execution_millis": "positive",
+                        "id": "32 chars",
+                        "job_id": "32 chars",
+                        "test_failure_message": None,
+                        "test_name": "Messages saved",
+                        "test_passed": True,
+                        "ts": "present",
+                    }
+                ],
+                "ts": "present",
+            },
+            {
+                "batch_id": "32 chars",
+                "execution_error_message": None,
+                "execution_error_occurred": False,
+                "execution_millis": "positive",
+                "id": "32 chars",
+                "job_name": "hello_world_job2",
+                "running": False,
+                "test_results": [
+                    {
+                        "execution_error_message": None,
+                        "execution_error_occurred": False,
+                        "execution_millis": "positive",
+                        "id": "32 chars",
+                        "job_id": "32 chars",
+                        "test_failure_message": None,
+                        "test_name": "Messages saved",
+                        "test_passed": True,
+                        "ts": "present",
+                    }
+                ],
+                "ts": "present",
+            },
+        ],
+        "name": "test_batch",
+        "running": False,
+        "ts": "present",
     }
-    assert actual.broken_jobs == set()
-    assert actual.running.value is False
-    assert actual.execution_millis is not None
-    assert actual.execution_millis.value > 0
-    assert actual.ts is not None
+    assert test_utils.batch_result_to_deterministic_dict(actual) == expected
 
     sql = """
         SELECT execution_error_occurred, execution_error_message, ts
@@ -265,33 +521,16 @@ def test_run_with_unresolved_dependencies(
     in_memory_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    jobs = [
-        MessageJob(
-            job_name="hello_world_job",
-            dependencies=[],
-            messages=[
-                Message(id=1, message="Hello"),
-                Message(id=2, message="World"),
-            ],
-        ),
-        MessageJob(
-            job_name="hello_world_job2",
-            dependencies=["hello_world_job3"],
-            messages=[
-                Message(id=3, message="Have"),
-                Message(id=4, message="Fun"),
-            ],
-        ),
-    ]
-    shared_resources = le.SharedResources(
-        le.SqlAlchemySession(messages_session_factory)
+    batch = MessageBatchWithMissingDependencies(
+        batch_name=le.BatchName("test_batch"),
+        batch_id=le.UniqueId("a" * 32),
+        session_factory=messages_session_factory,
     )
     with pytest.raises(le.DependencyErrors) as e:
-        le.run(
-            batch_name="test_batch",
-            engine_or_uri=in_memory_db,
-            jobs=jobs,
-            batch_uow=MessageUOW(shared_resources),
+        le.run_batch(
+            admin_engine_or_uri=in_memory_db,
+            admin_schema=None,
+            batch=batch,
         )
     assert (
         "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]"
@@ -342,33 +581,16 @@ def test_run_with_dependencies_out_of_order(
     in_memory_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    jobs = [
-        MessageJob(
-            job_name="hello_world_job2",
-            dependencies=["hello_world_job"],
-            messages=[
-                Message(id=1, message="Hello"),
-                Message(id=2, message="World"),
-            ],
-        ),
-        MessageJob(
-            job_name="hello_world_job",
-            dependencies=[],
-            messages=[
-                Message(id=3, message="Have"),
-                Message(id=4, message="Fun"),
-            ],
-        ),
-    ]
-    shared_resources = le.SharedResources(
-        le.SqlAlchemySession(messages_session_factory)
+    batch = MessageBatchWithDependenciesOutOfOrder(
+        batch_name=le.BatchName("test_batch"),
+        batch_id=le.UniqueId("a" * 32),
+        session_factory=messages_session_factory,
     )
     with pytest.raises(le.DependencyErrors) as e:
-        le.run(
-            batch_name="test_batch",
-            engine_or_uri=in_memory_db,
-            jobs=jobs,
-            batch_uow=MessageUOW(shared_resources),
+        le.run_batch(
+            admin_engine_or_uri=in_memory_db,
+            admin_schema=None,
+            batch=batch,
         )
     assert (
         "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
@@ -395,3 +617,181 @@ def test_run_with_dependencies_out_of_order(
         result = con.execute(sa.text(sql)).fetchall()
     job_log_messages = {row["message"] for row in result}
     assert job_log_messages == set()
+
+
+def test_run_with_duplicate_job_names(
+    in_memory_db: sa.engine.Engine,
+    messages_session_factory: orm.sessionmaker,
+) -> None:
+    batch = MessageBatchWithDuplicateJobNames(
+        batch_name=le.BatchName("test_batch"),
+        batch_id=le.UniqueId("a" * 32),
+        session_factory=messages_session_factory,
+    )
+    with pytest.raises(le.DuplicateJobNamesError) as e:
+        le.run_batch(
+            admin_engine_or_uri=in_memory_db,
+            admin_schema=None,
+            batch=batch,
+        )
+    assert (
+        "The following job names included more than once: [hello_world_job] (2)."
+        in str(e.value)
+    )
+
+    sql = """
+        SELECT job_name, execution_millis, execution_error_occurred, execution_error_message, ts
+        FROM jobs
+        ORDER BY ts
+    """
+    with in_memory_db.begin() as con:
+        result = con.execute(sa.text(sql)).fetchall()
+    assert len(result) == 0, (
+        f"The job spec is invalid, so the batch should have failed at initialization and no "
+        f"jobs should have been run, but {len(result)} job entries were added to the jobs table."
+    )
+    sql = """
+        SELECT batch_id, job_id, log_level, message, ts
+        FROM job_log
+        ORDER BY ts DESC
+    """
+    with in_memory_db.begin() as con:
+        result = con.execute(sa.text(sql)).fetchall()
+    job_log_messages = {row["message"] for row in result}
+    assert job_log_messages == set()
+
+
+@pytest.mark.slow
+def test_run_batches_in_parallel(
+    postgres_db: sa.engine.Engine,
+    postgres_db_uri: str,
+) -> None:
+    admin_batch = le.AdminBatch(
+        admin_db_uri=le.DbUri(postgres_db_uri),
+        admin_schema=le.SchemaName(None),
+        batch_id=le.UniqueId("e" * 32),
+    )
+    message_batch = PickleableMessageBatch(
+        batch_name=le.BatchName("test_batch"),
+        batch_id=le.UniqueId("f" * 32),
+        db_uri=le.DbUri(postgres_db_uri),
+    )
+    results = le.run_batches_in_parallel(
+        admin_db_uri=postgres_db_uri,
+        batches=(admin_batch, message_batch),
+        max_processes=3,
+        schema=None,
+        timeout=10,
+    )
+    expected = [
+        {
+            "execution_error_message": None,
+            "execution_error_occurred": False,
+            "execution_millis": "positive",
+            "id": "32 chars",
+            "job_results": [
+                {
+                    "batch_id": "32 chars",
+                    "execution_error_message": None,
+                    "execution_error_occurred": False,
+                    "execution_millis": "positive",
+                    "id": "32 chars",
+                    "job_name": "delete_old_logs",
+                    "running": False,
+                    "test_results": [
+                        {
+                            "execution_error_message": None,
+                            "execution_error_occurred": False,
+                            "execution_millis": "positive",
+                            "id": "32 chars",
+                            "job_id": "32 chars",
+                            "test_failure_message": None,
+                            "test_name": "No log entries more than 3 days old",
+                            "test_passed": True,
+                            "ts": "present",
+                        },
+                    ],
+                    "ts": "present",
+                },
+            ],
+            "name": "admin",
+            "running": False,
+            "ts": "present",
+        },
+        {
+            "execution_error_message": None,
+            "execution_error_occurred": False,
+            "execution_millis": "positive",
+            "id": "32 chars",
+            "job_results": [
+                {
+                    "batch_id": "32 chars",
+                    "execution_error_message": None,
+                    "execution_error_occurred": False,
+                    "execution_millis": "positive",
+                    "id": "32 chars",
+                    "job_name": "hello_world_job",
+                    "running": False,
+                    "test_results": [
+                        {
+                            "execution_error_message": None,
+                            "execution_error_occurred": False,
+                            "execution_millis": "positive",
+                            "id": "32 chars",
+                            "job_id": "32 chars",
+                            "test_failure_message": None,
+                            "test_name": "Messages saved",
+                            "test_passed": True,
+                            "ts": "present",
+                        },
+                    ],
+                    "ts": "present",
+                },
+                {
+                    "batch_id": "32 chars",
+                    "execution_error_message": None,
+                    "execution_error_occurred": False,
+                    "execution_millis": "positive",
+                    "id": "32 chars",
+                    "job_name": "hello_world_job2",
+                    "running": False,
+                    "test_results": [
+                        {
+                            "execution_error_message": None,
+                            "execution_error_occurred": False,
+                            "execution_millis": "positive",
+                            "id": "32 chars",
+                            "job_id": "32 chars",
+                            "test_failure_message": None,
+                            "test_name": "Messages saved",
+                            "test_passed": True,
+                            "ts": "present",
+                        },
+                    ],
+                    "ts": "present",
+                },
+            ],
+            "name": "test_batch",
+            "running": False,
+            "ts": "present",
+        },
+    ]
+    actual = sorted(
+        (test_utils.batch_result_to_deterministic_dict(r) for r in results),
+        key=lambda d: d["name"],
+    )
+    assert actual == expected
+
+    sql = """
+        SELECT execution_error_occurred, execution_error_message, ts
+        FROM batches
+        ORDER BY ts DESC
+    """
+    with postgres_db.begin() as con:
+        result = con.execute(sa.text(sql)).fetchall()
+    assert (
+        len(result) == 2
+    ), f"{len(result)} batches were added.  There should have been 2 added."
+    assert all(row["execution_error_occurred"] == 0 for row in result)
+    assert all(row["execution_error_message"] is None for row in result)
+    assert all(row["ts"] is not None for row in result)

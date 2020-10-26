@@ -2,8 +2,6 @@ import datetime
 import traceback
 import typing
 
-import lime_uow as lu
-
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
     exceptions,
@@ -21,7 +19,6 @@ class JobRunner(typing.Protocol):
         *,
         admin_uow: admin_unit_of_work.AdminUnitOfWork,
         batch_id: value_objects.UniqueId,
-        batch_uow: lu.UnitOfWork,
         job: job_spec.JobSpec,
         job_id: value_objects.UniqueId,
         logger: job_logging_service.AbstractJobLoggingService,
@@ -35,7 +32,6 @@ def default_job_runner(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
-    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -47,7 +43,6 @@ def default_job_runner(
         batch_id=batch_id,
         job=job,
         job_id=job_id,
-        batch_uow=batch_uow,
         logger=logger,
         skip_tests=skip_tests,
         ts_adapter=ts_adapter,
@@ -63,7 +58,6 @@ def default_job_runner(
                 batch_id=batch_id,
                 job=new_job,
                 job_id=job_id,
-                batch_uow=batch_uow,
                 logger=logger,
                 skip_tests=skip_tests,
                 ts_adapter=ts_adapter,
@@ -78,7 +72,6 @@ def default_job_runner(
                 batch_id=batch_id,
                 job=new_job,
                 job_id=job_id,
-                batch_uow=batch_uow,
                 logger=logger,
                 skip_tests=skip_tests,
                 ts_adapter=ts_adapter,
@@ -93,7 +86,6 @@ def _run_job_pre_handlers(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
-    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -139,7 +131,6 @@ def _run_job_pre_handlers(
                 skip_tests=skip_tests,
                 start_time=start_time,
                 ts_adapter=ts_adapter,
-                batch_uow=batch_uow,
             )
             logger.log_info(f"Finished running [{job.job_name.value}].")
             return result
@@ -148,7 +139,6 @@ def _run_job_pre_handlers(
 def _run_jobs_with_tests(
     *,
     batch_id: value_objects.UniqueId,
-    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -163,7 +153,6 @@ def _run_jobs_with_tests(
         retries_so_far=0,
         start_time=start_time,
         ts_adapter=ts_adapter,
-        batch_uow=batch_uow,
     )
     if result.is_success:
         logger.log_info(f"[{job.job_name.value}] finished successfully.")
@@ -174,7 +163,7 @@ def _run_jobs_with_tests(
         else:
             logger.log_info(f"Running the tests for [{job.job_name.value}]...")
             test_start_time = datetime.datetime.now()
-            test_results = job.test(batch_uow, logger)
+            test_results = job.test(logger)
             test_execution_millis = int(
                 (datetime.datetime.now() - test_start_time).total_seconds() * 1000
             )
@@ -227,7 +216,6 @@ def _run_jobs_with_tests(
 
 def _run_with_retry(
     *,
-    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     logger: job_logging_service.AbstractJobLoggingService,
     max_retries: int,
@@ -237,7 +225,7 @@ def _run_with_retry(
 ) -> typing.Tuple[value_objects.Result, value_objects.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(batch_uow, logger) or value_objects.Result.success()
+        result = job.run(logger) or value_objects.Result.success()
         end_time = ts_adapter.now()
         execution_millis = value_objects.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time
@@ -254,7 +242,6 @@ def _run_with_retry(
                 retries_so_far=retries_so_far + 1,
                 start_time=start_time,
                 ts_adapter=ts_adapter,
-                batch_uow=batch_uow,
             )
         else:
             logger.log_info(

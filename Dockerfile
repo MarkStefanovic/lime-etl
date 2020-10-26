@@ -10,7 +10,6 @@ RUN apk del --no-cache .build-deps
 
 RUN mkdir -p /src
 COPY lime_etl /src/
-RUN pip install -e /src
 COPY tests/ /tests/
 
 WORKDIR /src

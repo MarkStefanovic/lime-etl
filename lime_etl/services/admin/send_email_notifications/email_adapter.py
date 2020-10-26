@@ -2,7 +2,8 @@ import typing
 from email.message import EmailMessage
 from smtplib import SMTP
 
-from lime_etl.domain import batch_delta, value_objects
+from lime_etl.domain import value_objects
+from lime_etl.services.admin.send_email_notifications import batch_delta
 from lime_etl.services.admin.send_email_notifications import email_domain
 
 

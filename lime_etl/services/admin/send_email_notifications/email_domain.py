@@ -3,15 +3,15 @@ import re
 from lime_etl.domain import value_objects
 
 
-class SMTPServer(value_objects._NonEmptyStr):
+class SMTPServer(value_objects.NonEmptyStr):
     ...
 
 
-class SMTPPort(value_objects._PositiveInt):
+class SMTPPort(value_objects.PositiveInt):
     ...
 
 
-class EmailMsg(value_objects._NonEmptyStr):
+class EmailMsg(value_objects.NonEmptyStr):
     ...
 
 

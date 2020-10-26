@@ -7,11 +7,19 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 from lime_etl.adapters import (
-    batch_log_repository, batch_repository, job_log_repository, job_repository, timestamp_adapter,
+    batch_log_repository,
+    batch_repository,
+    job_log_repository,
+    job_repository,
+    timestamp_adapter,
 )
-from lime_etl.adapters.orm import metadata, start_mappers
+from lime_etl.adapters.admin_orm import metadata, start_mappers
 from lime_etl.domain import (
-    batch, batch_log_entry, job_log_entry, job_result, value_objects,
+    batch_result,
+    batch_log_entry,
+    job_log_entry,
+    job_result,
+    value_objects,
 )
 from lime_etl.services import admin_unit_of_work
 
@@ -147,11 +155,13 @@ class DummyJobLogRepository(
 
 class DummyBatchRepository(
     batch_repository.BatchRepository,
-    lu.DummyRepository[batch.BatchDTO],
+    lu.DummyRepository[batch_result.BatchResultDTO],
 ):
     def __init__(
         self,
-        initial_values: typing.Optional[typing.List[batch.BatchDTO]] = None,
+        initial_values: typing.Optional[
+            typing.List[batch_result.BatchResultDTO]
+        ] = None,
     ) -> None:
         super().__init__(initial_values=initial_values, key_fn=lambda o: o.id)
 
@@ -162,7 +172,7 @@ class DummyBatchRepository(
         self._current_state = [e for e in self.all() if e.ts > cutoff]
         return len(self._current_state)
 
-    def get_latest(self) -> typing.Optional[batch.BatchDTO]:
+    def get_latest(self) -> typing.Optional[batch_result.BatchResultDTO]:
         return sorted(self._current_state, key=lambda e: e.ts)[-1]
 
     @classmethod
@@ -231,17 +241,20 @@ def dummy_admin_uow() -> DummyAdminUnitOfWork:
     return DummyAdminUnitOfWork()
 
 
-@pytest.fixture(scope="session")
-def postgres_db() -> sa.engine.Engine:
+@pytest.fixture
+def postgres_db_uri() -> str:
     user = "tester"
     db_name = "testdb"
     pwd = "abc123"
     # host = "0.0.0.0"
     host = "postgres"
     port = 5432
-    uri = f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
-    print(f"{uri=}")
-    engine = sa.create_engine(uri)
+    return f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
+
+
+@pytest.fixture
+def postgres_db(postgres_db_uri: str) -> sa.engine.Engine:
+    engine = sa.create_engine(postgres_db_uri, isolation_level="SERIALIZABLE")
     metadata.create_all(engine)
     return engine
 

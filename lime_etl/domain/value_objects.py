@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import enum
-import re
 import warnings
 import typing
 from uuid import uuid4
@@ -76,7 +75,7 @@ class Flag(ValueObject):
         super().__init__(value)
 
 
-class _PositiveInt(ValueObject):
+class PositiveInt(ValueObject):
     def __init__(self, value: int, /):
         if value is None:
             raise ValueError(
@@ -95,7 +94,7 @@ class _PositiveInt(ValueObject):
         super().__init__(value)
 
 
-class _NonEmptyStr(ValueObject):
+class NonEmptyStr(ValueObject):
     def __init__(self, value: str, /):
         if value is None:
             raise ValueError(
@@ -127,7 +126,7 @@ class Success(ValueObject):
 
 class Failure(ValueObject):
     def __init__(self, message: str, /) -> None:
-        value = _NonEmptyStr(message).value
+        value = NonEmptyStr(message).value
         super().__init__(value)
 
 
@@ -266,6 +265,11 @@ class _DbName(ValueObject):
         super().__init__(value)
 
 
+class DbUri(NonEmptyStr):
+    def __init__(self, value: str, /):
+        super().__init__(value)
+
+
 class BatchName(_DbName):
     def __init__(self, value: str, /):
         super().__init__(value)
@@ -276,20 +280,19 @@ class JobName(_DbName):
         super().__init__(value)
 
 
-class ResourceName(_NonEmptyStr):
+class ResourceName(NonEmptyStr):
     ...
 
 
-class SecondsBetweenRefreshes(ValueObject):
-    def __init__(self, value: int, /):
+class MinSecondsBetweenRefreshes(ValueObject):
+    def __init__(self, value: typing.Optional[int], /):
         if value is None:
-            raise ValueError(
-                f"{self.__class__.__name__} value is required, but got None."
-            )
+            ...
         elif isinstance(value, int):
             if value < 0:
                 raise ValueError(
-                    f"If a {self.__class__.__name__} must be positive, but got {value!r}."
+                    f"If a {self.__class__.__name__} is provided, then it must be positive, but "
+                    f"got {value!r}."
                 )
         else:
             raise TypeError(
@@ -319,15 +322,15 @@ class TestName(ValueObject):
         super().__init__(value)
 
 
-class Days(_PositiveInt):
+class Days(PositiveInt):
     ...
 
 
-class DaysToKeep(_PositiveInt):
+class DaysToKeep(PositiveInt):
     ...
 
 
-class ExecutionMillis(_PositiveInt):
+class ExecutionMillis(PositiveInt):
     ...
 
     @staticmethod
@@ -336,11 +339,24 @@ class ExecutionMillis(_PositiveInt):
         return ExecutionMillis(elapsed_millis)
 
 
-class TimeoutSeconds(_PositiveInt):
-    ...
+class TimeoutSeconds(ValueObject):
+    def __init__(self, value: typing.Optional[int], /):
+        if value is None:
+            ...
+        elif isinstance(value, int):
+            if value < 0:
+                raise ValueError(
+                    f"If a value is provided for {self.__class__.__name__}, then it must be positive."
+                )
+        else:
+            raise TypeError(
+                f"{self.__class__.__name__} expects an int, but got {value!r}"
+            )
+
+        super().__init__(value)
 
 
-class MaxRetries(_PositiveInt):
+class MaxRetries(PositiveInt):
     ...
 
 

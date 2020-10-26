@@ -2,11 +2,9 @@ import itertools
 import traceback
 import typing
 
-import lime_uow as lu
-
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
-    batch,
+    batch_result,
     exceptions,
     job_dependency_errors,
     job_result,
@@ -25,12 +23,11 @@ def run(
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
     batch_name: value_objects.BatchName,
-    batch_uow: lu.UnitOfWork,
     jobs: typing.Collection[job_spec.JobSpec],
     logger: batch_logging_service.BatchLoggingService,
     skip_tests: bool,
     ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> batch.Batch:
+) -> batch_result.BatchResult:
     start_time = ts_adapter.now()
     try:
         dep_results = check_dependencies(jobs)
@@ -38,7 +35,7 @@ def run(
             raise exceptions.DependencyErrors(dep_results)
 
         with admin_uow as uow:
-            new_batch = batch.Batch(
+            new_batch = batch_result.BatchResult(
                 id=batch_id,
                 name=batch_name,
                 job_results=frozenset(),
@@ -57,7 +54,6 @@ def run(
             batch_logger=logger,
             batch_name=batch_name,
             jobs=jobs,
-            batch_uow=batch_uow,
             skip_tests=skip_tests,
             start_time=start_time,
             ts_adapter=ts_adapter,
@@ -73,7 +69,7 @@ def run(
         logger.log_error(str(e))
         end_time = ts_adapter.now()
         with admin_uow as uow:
-            result = batch.Batch(
+            result = batch_result.BatchResult(
                 id=batch_id,
                 name=batch_name,
                 job_results=frozenset(),
@@ -151,12 +147,11 @@ def _run_batch(
     batch_id: value_objects.UniqueId,
     batch_logger: batch_logging_service.AbstractBatchLoggingService,
     batch_name: value_objects.BatchName,
-    batch_uow: lu.UnitOfWork,
     jobs: typing.Collection[job_spec.JobSpec],
     skip_tests: bool,
     start_time: value_objects.Timestamp,
     ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> batch.Batch:
+) -> batch_result.BatchResult:
     _check_for_duplicate_job_names(jobs)
 
     job_results: typing.List[job_result.JobResult] = []
@@ -169,10 +164,10 @@ def _run_batch(
             seconds_since_last_refresh = (
                 current_ts.value - last_ts.value
             ).total_seconds()
-            if seconds_since_last_refresh < job.seconds_between_refreshes.value:
+            if seconds_since_last_refresh < job.min_seconds_between_refreshes.value:
                 batch_logger.log_info(
                     f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
-                    f"ago and it is set to refresh every {job.seconds_between_refreshes.value} seconds, "
+                    f"ago and it is set to refresh every {job.min_seconds_between_refreshes.value} seconds, "
                     f"so there is no need to refresh again."
                 )
                 continue
@@ -201,7 +196,6 @@ def _run_batch(
                 logger=job_logger,
                 batch_id=batch_id,
                 job_id=job_id,
-                batch_uow=batch_uow,
                 skip_tests=skip_tests,
                 ts_adapter=ts_adapter,
             )
@@ -229,7 +223,7 @@ def _run_batch(
     end_time = ts_adapter.now()
 
     execution_millis = int((end_time.value - start_time.value).total_seconds() * 1000)
-    return batch.Batch(
+    return batch_result.BatchResult(
         id=batch_id,
         name=batch_name,
         execution_millis=value_objects.ExecutionMillis(execution_millis),
