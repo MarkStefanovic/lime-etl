@@ -22,14 +22,13 @@ from lime_etl.domain import (
 )
 
 
+__all__ = (
+    "metadata",
+    "set_schema",
+    "start_mappers",
+)
+
 metadata = MetaData()
-
-
-# @event.listens_for(Engine, "connect")
-# def set_sqlite_pragma(dbapi_connection, _):
-#     cursor = dbapi_connection.cursor()
-#     cursor.execute("PRAGMA foreign_keys=ON")
-#     cursor.close()
 
 
 batches = Table(
@@ -102,7 +101,9 @@ def start_mappers() -> None:
     if not _is_mapped_class(batch_log_entry.BatchLogEntryDTO):
         mapper(batch_log_entry.BatchLogEntryDTO, batch_log)
         mapper(job_log_entry.JobLogEntryDTO, job_log)
-        job_test_result_mapper = mapper(job_test_result.JobTestResultDTO, job_test_results)
+        job_test_result_mapper = mapper(
+            job_test_result.JobTestResultDTO, job_test_results
+        )
         job_mapper = mapper(
             job_result.JobResultDTO,
             jobs,

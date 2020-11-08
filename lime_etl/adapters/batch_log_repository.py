@@ -11,6 +11,12 @@ from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import batch_log_entry, value_objects
 
 
+__all__ = (
+    "BatchLogRepository",
+    "SqlAlchemyBatchLogRepository",
+)
+
+
 class BatchLogRepository(
     lu.Repository[batch_log_entry.BatchLogEntryDTO],
     abc.ABC,

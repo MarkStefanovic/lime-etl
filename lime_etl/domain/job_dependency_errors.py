@@ -3,6 +3,8 @@ import typing
 
 from lime_etl.domain import value_objects
 
+__all__ = ("JobDependencyErrors",)
+
 
 @dataclasses.dataclass(frozen=True, order=True)
 class JobDependencyErrors:
@@ -13,16 +15,16 @@ class JobDependencyErrors:
     def __str__(self) -> str:
         if self.missing_dependencies:
             missing_deps_str: typing.Optional[str] = (
-                f" has the following unresolved dependencies: " +
-                f"{', '.join(sorted('[' + dep.value + ']' for dep in self.missing_dependencies))}"
+                f" has the following unresolved dependencies: "
+                + f"{', '.join(sorted('[' + dep.value + ']' for dep in self.missing_dependencies))}"
             )
         else:
             missing_deps_str = None
 
         if self.jobs_out_of_order:
             jobs_out_of_order_str: typing.Optional[str] = (
-                f" depends on the following jobs which come after it: " +
-                f"{', '.join(sorted('[' + dep.value + ']'  for dep in self.jobs_out_of_order))}"
+                f" depends on the following jobs which come after it: "
+                + f"{', '.join(sorted('[' + dep.value + ']'  for dep in self.jobs_out_of_order))}"
             )
         else:
             jobs_out_of_order_str = None

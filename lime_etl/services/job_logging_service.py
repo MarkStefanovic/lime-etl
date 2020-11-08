@@ -6,6 +6,13 @@ from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import job_log_entry, value_objects
 
 
+__all__ = (
+    "AbstractJobLoggingService",
+    "JobLoggingService",
+    "ConsoleJobLoggingService",
+)
+
+
 class AbstractJobLoggingService(abc.ABC):
     @abc.abstractmethod
     def log_error(self, message: str, /) -> None:

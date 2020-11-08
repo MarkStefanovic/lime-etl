@@ -47,7 +47,7 @@ def session(session_factory: orm.sessionmaker) -> orm.Session:
 
 
 def static_timestamp_adapter(
-    dt: datetime.datetime,
+    dt: datetime.datetime, /
 ) -> timestamp_adapter.TimestampAdapter:
     return StaticTimestampAdapter(dt)
 
@@ -56,9 +56,15 @@ class StaticTimestampAdapter(timestamp_adapter.TimestampAdapter):
     def __init__(self, dt: datetime.datetime):
         self.dt = dt
 
+    def close(self) -> None:
+        pass
+
     @classmethod
     def interface(cls) -> typing.Type[timestamp_adapter.TimestampAdapter]:
         return timestamp_adapter.TimestampAdapter
+
+    def open(self) -> None:
+        pass
 
     def rollback(self) -> None:
         pass
@@ -203,9 +209,7 @@ class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
             static_timestamp_adapter(datetime.datetime(2020, 1, 1)),
         }
 
-    def create_shared_resources(
-        self,
-    ) -> typing.List[lu.SharedResource[typing.Any]]:
+    def create_shared_resources(self) -> typing.List[lu.Resource[typing.Any]]:
         return []
 
     @property

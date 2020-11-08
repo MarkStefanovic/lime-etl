@@ -6,6 +6,12 @@ import typing
 
 from lime_etl.domain import value_objects
 
+__all__ = (
+    "JobTestResultDTO",
+    "JobTestResult",
+    "SimpleJobTestResult",
+)
+
 
 @dataclasses.dataclass(unsafe_hash=True)
 class JobTestResultDTO:

@@ -6,6 +6,12 @@ from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import batch_log_entry, value_objects
 from lime_etl.services import job_logging_service
 
+__all__ = (
+    "AbstractBatchLoggingService",
+    "BatchLoggingService",
+    "ConsoleBatchLoggingService",
+)
+
 
 class AbstractBatchLoggingService(abc.ABC):
     @abc.abstractmethod

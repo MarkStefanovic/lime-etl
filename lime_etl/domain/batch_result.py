@@ -8,6 +8,12 @@ import typing
 from lime_etl.domain import exceptions, job_result, value_objects
 
 
+__all__ = (
+    "BatchResultDTO",
+    "BatchResult",
+)
+
+
 @dataclasses.dataclass(unsafe_hash=True)
 class BatchResultDTO:
     id: str

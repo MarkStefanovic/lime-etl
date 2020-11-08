@@ -10,6 +10,12 @@ from lime_etl.adapters import admin_orm
 from lime_etl.domain import value_objects
 
 
+__all__ = (
+    "SqlAlchemyAdminSession",
+    "admin_session_factory",
+)
+
+
 class SqlAlchemyAdminSession(lu.SqlAlchemySession):
     def __init__(self, session_factory: orm.sessionmaker):
         super().__init__(session_factory)

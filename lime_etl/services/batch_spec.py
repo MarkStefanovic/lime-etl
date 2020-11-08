@@ -4,9 +4,12 @@ import typing
 import lime_uow as lu
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import job_spec, value_objects
+from lime_etl.domain import value_objects
+from lime_etl.services import job_spec
 
 UOW = typing.TypeVar("UOW", bound=lu.UnitOfWork)
+
+__all__ = ("BatchSpec",)
 
 
 class BatchSpec(abc.ABC, typing.Generic[UOW]):
@@ -39,7 +42,7 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
         return self._batch_name
 
     @abc.abstractmethod
-    def create_job_specs(self, uow: UOW) -> typing.Collection[job_spec.JobSpec]:
+    def create_job_specs(self, uow: UOW) -> typing.Iterable[job_spec.JobSpec]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -89,7 +92,8 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
     def __eq__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
             return (
-                self.batch_name.value == typing.cast(BatchSpec[typing.Any], other).batch_name.value
+                self.batch_name.value
+                == typing.cast(BatchSpec[typing.Any], other).batch_name.value
             )
         else:
             return NotImplemented

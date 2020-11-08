@@ -9,7 +9,13 @@ import lime_uow as lu
 from lime_etl.domain import value_objects
 
 
-class TimestampAdapter(lu.Resource[value_objects.Timestamp], abc.ABC):
+__all__ = (
+    "TimestampAdapter",
+    "LocalTimestampAdapter",
+)
+
+
+class TimestampAdapter(lu.Resource[None], abc.ABC):
     @abc.abstractmethod
     def now(self) -> value_objects.Timestamp:
         raise NotImplementedError
@@ -30,8 +36,8 @@ class LocalTimestampAdapter(TimestampAdapter):
     def interface(cls) -> typing.Type[TimestampAdapter]:
         return TimestampAdapter
 
-    def open(self) -> lu.Resource[value_objects.Timestamp]:
-        return self
+    def open(self) -> None:
+        pass
 
     def rollback(self) -> None:
         pass

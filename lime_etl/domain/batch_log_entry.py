@@ -5,6 +5,11 @@ import dataclasses
 
 from lime_etl.domain import value_objects
 
+__all__ = (
+    "BatchLogEntryDTO",
+    "BatchLogEntry",
+)
+
 
 @dataclasses.dataclass(unsafe_hash=True)
 class BatchLogEntryDTO:
@@ -42,5 +47,5 @@ class BatchLogEntry:
         )
 
     def __str__(self) -> str:
-        ts_str = self.ts.value.strftime('%H:%M:%S')
+        ts_str = self.ts.value.strftime("%H:%M:%S")
         return f"{ts_str} - {self.log_level} - {self.message.value}"

@@ -28,13 +28,13 @@ class Message:
     message: str
 
 
-class AbstractMessageRepo(le.Repository[Message], abc.ABC):
+class AbstractMessageRepo(lu.Repository[Message], abc.ABC):
     @property
     def entity_type(self) -> typing.Type[Message]:
         return Message
 
 
-class MessageRepo(AbstractMessageRepo, le.SqlAlchemyRepository[Message]):
+class MessageRepo(AbstractMessageRepo, lu.SqlAlchemyRepository[Message]):
     def __init__(self, session: orm.Session, /):
         super().__init__(session)
 
@@ -53,14 +53,14 @@ def messages_session_factory(
     orm.clear_mappers()
 
 
-class MessageUOW(le.UnitOfWork):
-    def __init__(self, shared_resources: le.SharedResources):
+class MessageUOW(lu.UnitOfWork):
+    def __init__(self, shared_resources: lu.SharedResources):
         super().__init__(shared_resources)
 
     def create_resources(
-        self, shared_resources: le.SharedResources
-    ) -> typing.Set[le.Resource[typing.Any]]:
-        return {MessageRepo(shared_resources.get(le.SqlAlchemySession))}
+        self, shared_resources: lu.SharedResources
+    ) -> typing.Set[lu.Resource[typing.Any]]:
+        return {MessageRepo(shared_resources.get(lu.SqlAlchemySession))}
 
     @property
     def message_repo(self) -> MessageRepo:
@@ -89,6 +89,7 @@ class MessageJob(le.JobSpec):
 
     def run(
         self,
+        uow: lu.UnitOfWork,
         logger: le.AbstractJobLoggingService,
     ) -> le.Result:
         with self._uow as uow:
@@ -126,6 +127,7 @@ class MessageJob(le.JobSpec):
 
     def test(
         self,
+        uow: lu.UnitOfWork,
         logger: le.AbstractJobLoggingService,
     ) -> typing.List[le.SimpleJobTestResult]:
         with self._uow as uow:
@@ -164,7 +166,7 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
             batch_id=batch_id,
         )
 
-    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 uow=uow,
@@ -189,7 +191,7 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
         ]
 
     def create_shared_resource(self) -> lu.SharedResources:
-        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
 
     def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
         return MessageUOW(shared_resources)
@@ -209,7 +211,7 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
             batch_id=batch_id,
         )
 
-    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 uow=uow,
@@ -234,7 +236,7 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
         ]
 
     def create_shared_resource(self) -> lu.SharedResources:
-        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
 
     def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
         return MessageUOW(shared_resources)
@@ -254,7 +256,7 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
             batch_id=batch_id,
         )
 
-    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 uow=uow,
@@ -279,7 +281,7 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
         ]
 
     def create_shared_resource(self) -> lu.SharedResources:
-        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
 
     def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
         return MessageUOW(shared_resources)
@@ -299,7 +301,7 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
             batch_id=batch_id,
         )
 
-    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 uow=uow,
@@ -324,7 +326,7 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
         ]
 
     def create_shared_resource(self) -> lu.SharedResources:
-        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
 
     def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
         return MessageUOW(shared_resources)
@@ -344,7 +346,7 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
             batch_id=batch_id,
         )
 
-    def create_job_specs(self, uow: MessageUOW) -> typing.List[MessageJob]:
+    def create_job_specs(self, uow: MessageUOW) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 uow=uow,
@@ -373,7 +375,7 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
         meta.create_all(bind=engine)
         orm.mapper(Message, messages_table)
         session_factory = orm.sessionmaker(bind=engine)
-        return le.SharedResources(le.SqlAlchemySession(session_factory))
+        return lu.SharedResources(lu.SqlAlchemySession(session_factory))
 
     def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
         return MessageUOW(shared_resources)
@@ -526,7 +528,7 @@ def test_run_with_unresolved_dependencies(
         batch_id=le.UniqueId("a" * 32),
         session_factory=messages_session_factory,
     )
-    with pytest.raises(le.DependencyErrors) as e:
+    with pytest.raises(le.exceptions.DependencyErrors) as e:
         le.run_batch(
             admin_engine_or_uri=in_memory_db,
             admin_schema=None,
@@ -586,7 +588,7 @@ def test_run_with_dependencies_out_of_order(
         batch_id=le.UniqueId("a" * 32),
         session_factory=messages_session_factory,
     )
-    with pytest.raises(le.DependencyErrors) as e:
+    with pytest.raises(le.exceptions.DependencyErrors) as e:
         le.run_batch(
             admin_engine_or_uri=in_memory_db,
             admin_schema=None,
@@ -628,7 +630,7 @@ def test_run_with_duplicate_job_names(
         batch_id=le.UniqueId("a" * 32),
         session_factory=messages_session_factory,
     )
-    with pytest.raises(le.DuplicateJobNamesError) as e:
+    with pytest.raises(le.exceptions.DuplicateJobNamesError) as e:
         le.run_batch(
             admin_engine_or_uri=in_memory_db,
             admin_schema=None,

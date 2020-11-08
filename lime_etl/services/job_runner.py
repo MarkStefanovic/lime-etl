@@ -5,33 +5,22 @@ import typing
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
     exceptions,
-    job_result,
-    job_spec,
-    job_test_result,
+    job_result, job_test_result,
     value_objects,
 )
-from lime_etl.services import admin_unit_of_work, job_logging_service
+from lime_etl.services import admin_unit_of_work, job_logging_service, job_spec
+
+import lime_uow as lu
 
 
-class JobRunner(typing.Protocol):
-    def __call__(
-        self,
-        *,
-        admin_uow: admin_unit_of_work.AdminUnitOfWork,
-        batch_id: value_objects.UniqueId,
-        job: job_spec.JobSpec,
-        job_id: value_objects.UniqueId,
-        logger: job_logging_service.AbstractJobLoggingService,
-        skip_tests: bool,
-        ts_adapter: timestamp_adapter.TimestampAdapter,
-    ) -> job_result.JobResult:
-        ...
+__all__ = ("default_job_runner",)
 
 
 def default_job_runner(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -41,6 +30,7 @@ def default_job_runner(
     result = _run_job_pre_handlers(
         admin_uow=admin_uow,
         batch_id=batch_id,
+        batch_uow=batch_uow,
         job=job,
         job_id=job_id,
         logger=logger,
@@ -56,6 +46,7 @@ def default_job_runner(
             return default_job_runner(
                 admin_uow=admin_uow,
                 batch_id=batch_id,
+                batch_uow=batch_uow,
                 job=new_job,
                 job_id=job_id,
                 logger=logger,
@@ -70,6 +61,7 @@ def default_job_runner(
             return default_job_runner(
                 admin_uow=admin_uow,
                 batch_id=batch_id,
+                batch_uow=batch_uow,
                 job=new_job,
                 job_id=job_id,
                 logger=logger,
@@ -86,6 +78,7 @@ def _run_job_pre_handlers(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -125,6 +118,7 @@ def _run_job_pre_handlers(
         else:
             result = _run_jobs_with_tests(
                 batch_id=batch_id,
+                batch_uow=batch_uow,
                 job=job,
                 job_id=job_id,
                 logger=logger,
@@ -139,6 +133,7 @@ def _run_job_pre_handlers(
 def _run_jobs_with_tests(
     *,
     batch_id: value_objects.UniqueId,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     job_id: value_objects.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -147,6 +142,7 @@ def _run_jobs_with_tests(
     ts_adapter: timestamp_adapter.TimestampAdapter,
 ) -> job_result.JobResult:
     result, execution_millis = _run_with_retry(
+        batch_uow=batch_uow,
         job=job,
         logger=logger,
         max_retries=job.max_retries.value,
@@ -163,7 +159,7 @@ def _run_jobs_with_tests(
         else:
             logger.log_info(f"Running the tests for [{job.job_name.value}]...")
             test_start_time = datetime.datetime.now()
-            test_results = job.test(logger)
+            test_results = job.test(uow=batch_uow, logger=logger)
             test_execution_millis = int(
                 (datetime.datetime.now() - test_start_time).total_seconds() * 1000
             )
@@ -216,6 +212,7 @@ def _run_jobs_with_tests(
 
 def _run_with_retry(
     *,
+    batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
     logger: job_logging_service.AbstractJobLoggingService,
     max_retries: int,
@@ -225,7 +222,7 @@ def _run_with_retry(
 ) -> typing.Tuple[value_objects.Result, value_objects.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(logger) or value_objects.Result.success()
+        result = job.run(uow=batch_uow, logger=logger) or value_objects.Result.success()
         end_time = ts_adapter.now()
         execution_millis = value_objects.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time
@@ -236,6 +233,7 @@ def _run_with_retry(
         if max_retries > retries_so_far:
             logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
             return _run_with_retry(
+                batch_uow=batch_uow,
                 job=job,
                 logger=logger,
                 max_retries=max_retries,

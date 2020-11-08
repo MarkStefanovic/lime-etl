@@ -3,22 +3,23 @@ import typing
 import lime_uow as lu
 from sqlalchemy import orm
 
-from lime_etl.adapters import admin_session, timestamp_adapter
-from lime_etl.domain import batch_spec, job_spec, value_objects
-from lime_etl.services import admin_unit_of_work
+from lime_etl import domain, adapters
+from lime_etl.services import admin_unit_of_work, batch_spec, job_spec
 from lime_etl.services.admin import delete_old_logs
+
+__all__ = ("AdminBatch",)
 
 
 class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
     def __init__(
         self,
-        admin_db_uri: value_objects.DbUri,
-        admin_schema: value_objects.SchemaName,
-        batch_id: typing.Optional[value_objects.UniqueId] = None,
-        days_logs_to_keep: value_objects.DaysToKeep = value_objects.DaysToKeep(3),
-        skip_tests: value_objects.Flag = value_objects.Flag(False),
-        timeout_seconds: typing.Optional[value_objects.TimeoutSeconds] = None,
-        ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
+        admin_db_uri: domain.DbUri,
+        admin_schema: domain.SchemaName,
+        batch_id: typing.Optional[domain.UniqueId] = None,
+        days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
+        skip_tests: domain.Flag = domain.Flag(False),
+        timeout_seconds: typing.Optional[domain.TimeoutSeconds] = None,
+        ts_adapter: adapters.TimestampAdapter = adapters.LocalTimestampAdapter(),
     ):
         self._admin_db_uri = admin_db_uri
         self._admin_schema = admin_schema
@@ -27,7 +28,7 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         self._session_factory: typing.Optional[orm.sessionmaker] = None
 
         super().__init__(
-            batch_name=value_objects.BatchName("admin"),
+            batch_name=domain.BatchName("admin"),
             batch_id=batch_id,
             skip_tests=skip_tests,
             timeout_seconds=timeout_seconds,
@@ -45,12 +46,12 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         )
 
     def create_shared_resource(self) -> lu.SharedResources:
-        session_factory = admin_session.admin_session_factory(
+        session_factory = adapters.admin_session_factory(
             engine_or_uri=self._admin_db_uri.value,
             schema=self._admin_schema.value,
         )
         return lu.SharedResources(
-            admin_session.SqlAlchemyAdminSession(session_factory),
+            adapters.SqlAlchemyAdminSession(session_factory),
         )
 
     def create_uow(

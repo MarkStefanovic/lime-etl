@@ -10,6 +10,12 @@ from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import batch_result, value_objects
 
 
+__all__ = (
+    "BatchRepository",
+    "SqlAlchemyBatchRepository",
+)
+
+
 class BatchRepository(lu.Repository[batch_result.BatchResultDTO], abc.ABC):
     @abc.abstractmethod
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep, /) -> int:
@@ -38,7 +44,9 @@ class SqlAlchemyBatchRepository(
         # not trigger them, and we don't want to rely on specific database implementations, so
         # we cannot use ondelete='CASCADE' on the foreign key columns.
         batches: typing.List[batch_result.BatchResultDTO] = (
-            self.session.query(batch_result.BatchResultDTO).filter(batch_result.BatchResultDTO.ts < cutoff).all()
+            self.session.query(batch_result.BatchResultDTO)
+            .filter(batch_result.BatchResultDTO.ts < cutoff)
+            .all()
         )
         for b in batches:
             self.session.delete(b)

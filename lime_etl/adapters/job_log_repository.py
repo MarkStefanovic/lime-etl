@@ -9,6 +9,12 @@ from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import job_log_entry, value_objects
 
 
+__all__ = (
+    "JobLogRepository",
+    "SqlAlchemyJobLogRepository",
+)
+
+
 class JobLogRepository(
     lu.Repository[job_log_entry.JobLogEntryDTO],
     abc.ABC,

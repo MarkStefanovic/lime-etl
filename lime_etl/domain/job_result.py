@@ -6,6 +6,11 @@ import typing
 
 from lime_etl.domain import exceptions, job_test_result, value_objects
 
+__all__ = (
+    "JobResultDTO",
+    "JobResult",
+)
+
 
 @dataclasses.dataclass(unsafe_hash=True)
 class JobResultDTO:
@@ -110,6 +115,3 @@ class JobResult:
             running=self.running.value,
             ts=self.ts.value,
         )
-
-
-

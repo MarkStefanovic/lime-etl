@@ -3,75 +3,84 @@ from __future__ import annotations
 import abc
 import typing
 
-from lime_etl.domain import job_test_result, value_objects
+from lime_etl import domain
 from lime_etl.services import job_logging_service
+
+import lime_uow as lu
+
+
+__all__ = ("JobSpec",)
 
 
 class JobSpec(abc.ABC):
     def __init__(
         self,
-        job_name: value_objects.JobName,
-        dependencies: typing.Collection[value_objects.JobName] = tuple(),
-        job_id: typing.Optional[value_objects.UniqueId] = None,
-        max_retries: value_objects.MaxRetries = value_objects.MaxRetries(0),
-        min_seconds_between_refreshes: value_objects.MinSecondsBetweenRefreshes = value_objects.MinSecondsBetweenRefreshes(300),
-        timeout_seconds: value_objects.TimeoutSeconds = value_objects.TimeoutSeconds(None),
+        job_name: domain.JobName,
+        dependencies: typing.Collection[domain.JobName] = tuple(),
+        job_id: typing.Optional[domain.UniqueId] = None,
+        max_retries: domain.MaxRetries = domain.MaxRetries(0),
+        min_seconds_between_refreshes: domain.MinSecondsBetweenRefreshes = domain.MinSecondsBetweenRefreshes(
+            300
+        ),
+        timeout_seconds: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
     ):
         self._job_name = job_name
         self._dependencies = tuple(dependencies)
-        self._job_id: typing.Optional[value_objects.UniqueId] = job_id
+        self._job_id: typing.Optional[domain.UniqueId] = job_id
         self._max_retries = max_retries
         self._min_seconds_between_refreshes = min_seconds_between_refreshes
         self._timeout_seconds = timeout_seconds
 
     @property
-    def dependencies(self) -> typing.Tuple[value_objects.JobName, ...]:
+    def dependencies(self) -> typing.Tuple[domain.JobName, ...]:
         return self._dependencies
 
     @property
-    def job_id(self) -> value_objects.UniqueId:
+    def job_id(self) -> domain.UniqueId:
         if self._job_id is None:
-            self._job_id = value_objects.UniqueId.generate()
+            self._job_id = domain.UniqueId.generate()
         return self._job_id
 
     @property
-    def job_name(self) -> value_objects.JobName:
+    def job_name(self) -> domain.JobName:
         return self._job_name
 
     @property
-    def max_retries(self) -> value_objects.MaxRetries:
+    def max_retries(self) -> domain.MaxRetries:
         return self._max_retries
 
     def on_execution_error(self, error_message: str) -> typing.Optional[JobSpec]:
         return None
 
     def on_test_failure(
-        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+        self, test_results: typing.FrozenSet[domain.JobTestResult]
     ) -> typing.Optional[JobSpec]:
         return None
 
     @abc.abstractmethod
     def run(
         self,
-        /,
+        *,
+        uow: lu.UnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
-    ) -> value_objects.Result:
+    ) -> domain.Result:
         raise NotImplementedError
 
     @abc.abstractmethod
     def test(
         self,
-        /,
+        *,
+        uow: lu.UnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
-    ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
+    ) -> typing.Collection[domain.SimpleJobTestResult]:
         raise NotImplementedError
 
     @property
-    def min_seconds_between_refreshes(self) -> value_objects.MinSecondsBetweenRefreshes:
+    def min_seconds_between_refreshes(self) -> domain.MinSecondsBetweenRefreshes:
         return self._min_seconds_between_refreshes
 
     @property
-    def timeout_seconds(self) -> value_objects.TimeoutSeconds:
+    def timeout_seconds(self) -> domain.TimeoutSeconds:
         return self._timeout_seconds
 
     def __repr__(self) -> str:

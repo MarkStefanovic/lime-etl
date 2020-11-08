@@ -2,20 +2,23 @@ import itertools
 import traceback
 import typing
 
+import lime_uow as lu
+
 from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import (
     batch_result,
     exceptions,
     job_dependency_errors,
-    job_result,
-    job_spec,
-    value_objects,
+    job_result, value_objects,
 )
 from lime_etl.services import (
     admin_unit_of_work,
     batch_logging_service,
     job_runner,
+    job_spec,
 )
+
+__all__ = ("run",)
 
 
 def run(
@@ -23,6 +26,7 @@ def run(
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch_id: value_objects.UniqueId,
     batch_name: value_objects.BatchName,
+    batch_uow: lu.UnitOfWork,
     jobs: typing.Collection[job_spec.JobSpec],
     logger: batch_logging_service.BatchLoggingService,
     skip_tests: bool,
@@ -53,6 +57,7 @@ def run(
             batch_id=batch_id,
             batch_logger=logger,
             batch_name=batch_name,
+            batch_uow=batch_uow,
             jobs=jobs,
             skip_tests=skip_tests,
             start_time=start_time,
@@ -147,6 +152,7 @@ def _run_batch(
     batch_id: value_objects.UniqueId,
     batch_logger: batch_logging_service.AbstractBatchLoggingService,
     batch_name: value_objects.BatchName,
+    batch_uow: lu.UnitOfWork,
     jobs: typing.Collection[job_spec.JobSpec],
     skip_tests: bool,
     start_time: value_objects.Timestamp,
@@ -192,6 +198,7 @@ def _run_batch(
         try:
             result = job_runner.default_job_runner(
                 admin_uow=admin_uow,
+                batch_uow=batch_uow,
                 job=job,
                 logger=job_logger,
                 batch_id=batch_id,

@@ -8,6 +8,12 @@ from lime_etl.adapters import timestamp_adapter
 from lime_etl.domain import job_result, value_objects
 
 
+__all__ = (
+    "JobRepository",
+    "SqlAlchemyJobRepository",
+)
+
+
 class JobRepository(lu.Repository[job_result.JobResultDTO], abc.ABC):
     @abc.abstractmethod
     def get_latest(

@@ -14,6 +14,11 @@ from lime_etl.adapters import (
     timestamp_adapter,
 )
 
+__all__ = (
+    "AdminUnitOfWork",
+    "SqlAlchemyAdminUnitOfWork",
+)
+
 
 class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
     @property
@@ -46,7 +51,7 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
     def __init__(
         self,
         shared_resources: lu.SharedResources,
-        ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter()
+        ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
     ):
         self._ts_adapter = ts_adapter
 
@@ -72,7 +77,9 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
     def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
         return self._ts_adapter
 
-    def create_resources(self, shared_resources: lu.SharedResources) -> typing.Set[lu.Resource[typing.Any]]:
+    def create_resources(
+        self, shared_resources: lu.SharedResources
+    ) -> typing.Set[lu.Resource[typing.Any]]:
         session = shared_resources.get(admin_session.SqlAlchemyAdminSession)
         return {
             batch_repository.SqlAlchemyBatchRepository(
@@ -86,5 +93,5 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
             ),
             job_log_repository.SqlAlchemyJobLogRepository(
                 session=session, ts_adapter=self._ts_adapter
-            )
+            ),
         }
