@@ -28,7 +28,6 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
         self._ts_adapter = ts_adapter
 
         self._job_specs: typing.Optional[typing.Tuple[job_spec.JobSpec, ...]] = None
-        self._shared_resources: typing.Optional[lu.SharedResources] = None
         self._uow: typing.Optional[UOW] = None
 
     @property
@@ -46,11 +45,7 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def create_shared_resource(self) -> lu.SharedResources:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def create_uow(self, shared_resources: lu.SharedResources) -> UOW:
+    def create_uow(self) -> UOW:
         raise NotImplementedError
 
     @property
@@ -58,12 +53,6 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
         if self._job_specs is None:
             self._job_specs = tuple(self.create_job_specs(self.uow))
         return self._job_specs
-
-    @property
-    def shared_resources(self) -> lu.SharedResources:
-        if self._shared_resources is None:
-            self._shared_resources = self.create_shared_resource()
-        return self._shared_resources
 
     @property
     def skip_tests(self) -> value_objects.Flag:
@@ -80,7 +69,7 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
     @property
     def uow(self) -> UOW:
         if self._uow is None:
-            self._uow = self.create_uow(self.shared_resources)
+            self._uow = self.create_uow()
         return self._uow
 
     def __repr__(self) -> str:

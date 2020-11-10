@@ -5,8 +5,10 @@ import typing
 
 import lime_uow as lu
 import sqlalchemy as sa
+from sqlalchemy import orm
 
 from lime_etl import domain, adapters, services
+from lime_etl.adapters import admin_orm
 
 
 def run_batch(
@@ -23,23 +25,19 @@ def run_batch(
         session=session_factory(),
         ts_adapter=batch.ts_adapter,
     )
-    with lu.SharedResources(
-        adapters.SqlAlchemyAdminSession(session_factory)
-    ) as shared_resources:
-        admin_uow = services.SqlAlchemyAdminUnitOfWork(
-            shared_resources=shared_resources,
-            ts_adapter=batch.ts_adapter,
-        )
-        return services.run(
-            admin_uow=admin_uow,
-            batch_name=batch.batch_name,
-            batch_id=batch.batch_id,
-            batch_uow=batch.uow,
-            jobs=batch.job_specs,
-            logger=logger,
-            skip_tests=batch.skip_tests.value,
-            ts_adapter=batch.ts_adapter,
-        )
+    admin_uow = services.SqlAlchemyAdminUnitOfWork(
+        session_factory=session_factory, ts_adapter=batch.ts_adapter
+    )
+    return services.run(
+        admin_uow=admin_uow,
+        batch_name=batch.batch_name,
+        batch_id=batch.batch_id,
+        batch_uow=batch.uow,
+        jobs=batch.job_specs,
+        logger=logger,
+        skip_tests=batch.skip_tests.value,
+        ts_adapter=batch.ts_adapter,
+    )
 
 
 def run_admin(
@@ -55,13 +53,16 @@ def run_admin(
         )
         db_uri = domain.DbUri(str(typing.cast(sa.engine.Engine, engine).url))
     else:
-        engine = None
+        engine = sa.create_engine(admin_engine_or_uri)
+        admin_orm.metadata.create_all(bind=engine)
         db_uri = domain.DbUri(typing.cast(str, admin_engine_or_uri))
+
     admin_schema = domain.SchemaName(schema)
     days_to_keep = domain.DaysToKeep(days_logs_to_keep)
     skip_tests_flag = domain.Flag(skip_tests)
+    session_factory = orm.sessionmaker(bind=engine)
     batch = services.AdminBatch(
-        admin_db_uri=db_uri,
+        session_factory=session_factory,
         admin_schema=admin_schema,
         days_logs_to_keep=days_to_keep,
         skip_tests=skip_tests_flag,

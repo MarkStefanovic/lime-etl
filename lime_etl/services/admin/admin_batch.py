@@ -13,7 +13,7 @@ __all__ = ("AdminBatch",)
 class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
     def __init__(
         self,
-        admin_db_uri: domain.DbUri,
+        session_factory: orm.sessionmaker,
         admin_schema: domain.SchemaName,
         batch_id: typing.Optional[domain.UniqueId] = None,
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
@@ -21,11 +21,10 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         timeout_seconds: typing.Optional[domain.TimeoutSeconds] = None,
         ts_adapter: adapters.TimestampAdapter = adapters.LocalTimestampAdapter(),
     ):
-        self._admin_db_uri = admin_db_uri
         self._admin_schema = admin_schema
         self._batch_id = batch_id
         self._days_logs_to_keep = days_logs_to_keep
-        self._session_factory: typing.Optional[orm.sessionmaker] = None
+        self._session_factory = session_factory
 
         super().__init__(
             batch_name=domain.BatchName("admin"),
@@ -46,18 +45,11 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         )
 
     def create_shared_resource(self) -> lu.SharedResources:
-        session_factory = adapters.admin_session_factory(
-            engine_or_uri=self._admin_db_uri.value,
-            schema=self._admin_schema.value,
-        )
         return lu.SharedResources(
-            adapters.SqlAlchemyAdminSession(session_factory),
+            adapters.SqlAlchemyAdminSession(self._session_factory),
         )
 
-    def create_uow(
-        self, shared_resources: lu.SharedResources
-    ) -> admin_unit_of_work.AdminUnitOfWork:
+    def create_uow(self) -> admin_unit_of_work.AdminUnitOfWork:
         return admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
-            shared_resources=shared_resources,
-            ts_adapter=self.ts_adapter,
+            session_factory=self._session_factory, ts_adapter=self.ts_adapter
         )

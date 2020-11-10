@@ -159,7 +159,7 @@ def _run_jobs_with_tests(
         else:
             logger.log_info(f"Running the tests for [{job.job_name.value}]...")
             test_start_time = datetime.datetime.now()
-            test_results = job.test(uow=batch_uow, logger=logger)
+            test_results = job.test(batch_uow, logger)
             test_execution_millis = int(
                 (datetime.datetime.now() - test_start_time).total_seconds() * 1000
             )
@@ -222,7 +222,7 @@ def _run_with_retry(
 ) -> typing.Tuple[value_objects.Result, value_objects.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(uow=batch_uow, logger=logger) or value_objects.Result.success()
+        result = job.run(batch_uow, logger) or value_objects.Result.success()
         end_time = ts_adapter.now()
         execution_millis = value_objects.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time

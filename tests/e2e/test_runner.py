@@ -7,6 +7,7 @@ import typing
 import lime_uow as lu
 import pytest
 import sqlalchemy as sa
+
 from sqlalchemy import orm
 
 import lime_etl as le
@@ -54,8 +55,12 @@ def messages_session_factory(
 
 
 class MessageUOW(lu.UnitOfWork):
-    def __init__(self, shared_resources: lu.SharedResources):
-        super().__init__(shared_resources)
+    def __init__(self, /, session_factory: orm.sessionmaker):
+        super().__init__()
+        self._session_factory = session_factory
+
+    def create_shared_resources(self) -> lu.SharedResources:
+        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
 
     def create_resources(
         self, shared_resources: lu.SharedResources
@@ -64,7 +69,7 @@ class MessageUOW(lu.UnitOfWork):
 
     @property
     def message_repo(self) -> MessageRepo:
-        return self.get_resource(MessageRepo)
+        return self.get(MessageRepo)
 
 
 class MessageJob(le.JobSpec):
@@ -190,11 +195,8 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_shared_resource(self) -> lu.SharedResources:
-        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
-
-    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
-        return MessageUOW(shared_resources)
+    def create_uow(self) -> MessageUOW:
+        return MessageUOW(self._session_factory)
 
 
 class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
@@ -235,11 +237,8 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_shared_resource(self) -> lu.SharedResources:
-        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
-
-    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
-        return MessageUOW(shared_resources)
+    def create_uow(self) -> MessageUOW:
+        return MessageUOW(self._session_factory)
 
 
 class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
@@ -249,12 +248,8 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
         batch_id: le.UniqueId,
         session_factory: orm.sessionmaker,
     ):
+        super().__init__(batch_name=batch_name, batch_id=batch_id)
         self._session_factory = session_factory
-
-        super().__init__(
-            batch_name=batch_name,
-            batch_id=batch_id,
-        )
 
     def create_job_specs(self, uow: MessageUOW) -> typing.List[le.JobSpec]:
         return [
@@ -283,8 +278,8 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
     def create_shared_resource(self) -> lu.SharedResources:
         return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
 
-    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
-        return MessageUOW(shared_resources)
+    def create_uow(self) -> MessageUOW:
+        return MessageUOW(self._session_factory)
 
 
 class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
@@ -325,11 +320,8 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_shared_resource(self) -> lu.SharedResources:
-        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
-
-    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
-        return MessageUOW(shared_resources)
+    def create_uow(self) -> MessageUOW:
+        return MessageUOW(self._session_factory)
 
 
 class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
@@ -370,15 +362,12 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_shared_resource(self) -> lu.SharedResources:
+    def create_uow(self) -> MessageUOW:
         engine = sa.create_engine(self._db_uri.value)
         meta.create_all(bind=engine)
         orm.mapper(Message, messages_table)
         session_factory = orm.sessionmaker(bind=engine)
-        return lu.SharedResources(lu.SqlAlchemySession(session_factory))
-
-    def create_uow(self, shared_resources: lu.SharedResources) -> MessageUOW:
-        return MessageUOW(shared_resources)
+        return MessageUOW(session_factory)
 
 
 def test_run_admin(in_memory_db: sa.engine.Engine) -> None:
@@ -668,8 +657,9 @@ def test_run_batches_in_parallel(
     postgres_db: sa.engine.Engine,
     postgres_db_uri: str,
 ) -> None:
+    session_factory = orm.sessionmaker(bind=postgres_db)
     admin_batch = le.AdminBatch(
-        admin_db_uri=le.DbUri(postgres_db_uri),
+        session_factory=session_factory,
         admin_schema=le.SchemaName(None),
         batch_id=le.UniqueId("e" * 32),
     )

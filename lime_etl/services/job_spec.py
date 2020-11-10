@@ -60,7 +60,6 @@ class JobSpec(abc.ABC):
     @abc.abstractmethod
     def run(
         self,
-        *,
         uow: lu.UnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
     ) -> domain.Result:
@@ -69,7 +68,6 @@ class JobSpec(abc.ABC):
     @abc.abstractmethod
     def test(
         self,
-        *,
         uow: lu.UnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
     ) -> typing.Collection[domain.SimpleJobTestResult]:

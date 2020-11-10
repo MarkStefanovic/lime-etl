@@ -209,20 +209,20 @@ class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
             static_timestamp_adapter(datetime.datetime(2020, 1, 1)),
         }
 
-    def create_shared_resources(self) -> typing.List[lu.Resource[typing.Any]]:
-        return []
+    def create_shared_resources(self) -> lu.SharedResources:
+        return lu.PlaceholderSharedResources()
 
     @property
     def job_repo(self) -> job_repository.JobRepository:
-        return self.get_resource(job_repository.JobRepository)  # type: ignore
+        return self.get(job_repository.JobRepository)  # type: ignore
 
     @property
     def job_log_repo(self) -> job_log_repository.JobLogRepository:
-        return self.get_resource(job_log_repository.JobLogRepository)  # type: ignore
+        return self.get(job_log_repository.JobLogRepository)  # type: ignore
 
     @property
     def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
-        return self.get_resource(timestamp_adapter.TimestampAdapter)  # type: ignore
+        return self.get(timestamp_adapter.TimestampAdapter)  # type: ignore
 
 
 @pytest.fixture
