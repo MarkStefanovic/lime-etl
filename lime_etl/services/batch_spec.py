@@ -18,7 +18,7 @@ class BatchSpec(abc.ABC, typing.Generic[UOW]):
         batch_name: value_objects.BatchName,
         batch_id: typing.Optional[value_objects.UniqueId] = None,
         skip_tests: value_objects.Flag = value_objects.Flag(False),
-        timeout_seconds: typing.Optional[value_objects.TimeoutSeconds] = None,
+        timeout_seconds: value_objects.TimeoutSeconds = value_objects.TimeoutSeconds(None),
         ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
     ):
         self._batch_name = batch_name
