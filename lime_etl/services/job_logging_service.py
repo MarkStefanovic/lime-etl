@@ -1,4 +1,5 @@
 import abc
+import warnings
 
 from sqlalchemy import orm
 
@@ -39,6 +40,11 @@ class JobLoggingService(AbstractJobLoggingService):
         super().__init__()
 
     def _log(self, level: value_objects.LogLevel, message: str) -> None:
+        if len(message) > 2000:
+            warnings.warn(
+                "Attempted to log a message more than 2000 characters long.  It has been truncated to 2000 chars."
+            )
+            message = message[:2000]
         log_entry = job_log_entry.JobLogEntry(
             id=value_objects.UniqueId.generate(),
             batch_id=self._batch_id,
