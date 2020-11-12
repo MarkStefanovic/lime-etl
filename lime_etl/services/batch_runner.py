@@ -88,6 +88,9 @@ def run(
             uow.batch_repo.update(result.to_dto())
             uow.save()
         raise
+    finally:
+        admin_uow.close()
+        batch_uow.close()
 
 
 def check_dependencies(
