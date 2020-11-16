@@ -18,7 +18,7 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         batch_id: typing.Optional[domain.UniqueId] = None,
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
         skip_tests: domain.Flag = domain.Flag(False),
-        timeout_seconds: typing.Optional[domain.TimeoutSeconds] = None,
+        timeout_seconds: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
         ts_adapter: adapters.TimestampAdapter = adapters.LocalTimestampAdapter(),
     ):
         self._admin_schema = admin_schema

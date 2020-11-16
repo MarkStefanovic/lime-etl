@@ -4,7 +4,7 @@ import dataclasses
 import datetime
 import typing
 
-from lime_etl.domain import exceptions, job_test_result, value_objects
+from lime_etl.domain import job_status, job_test_result, value_objects
 
 __all__ = (
     "JobResultDTO",
@@ -28,15 +28,15 @@ class JobResultDTO:
         test_results = frozenset(dto.to_domain() for dto in self.test_results)
         if self.running:
             execution_millis = None
-            execution_success_or_failure = None
+            status: job_status.JobStatus = job_status.JobStatus.in_progress()
         else:
             execution_millis = value_objects.ExecutionMillis(self.execution_millis or 0)
             if self.execution_error_occurred:
-                execution_success_or_failure = value_objects.Result.failure(
+                status = job_status.JobStatus.failed(
                     self.execution_error_message or "No error message was provided."
                 )
             else:
-                execution_success_or_failure = value_objects.Result.success()
+                status = job_status.JobStatus.success()
 
         return JobResult(
             id=value_objects.UniqueId(self.id),
@@ -44,46 +44,20 @@ class JobResultDTO:
             job_name=value_objects.JobName(self.job_name),
             test_results=test_results,
             execution_millis=execution_millis,
-            execution_success_or_failure=execution_success_or_failure,
-            running=value_objects.Flag(self.running),
+            status=status,
             ts=value_objects.Timestamp(self.ts),
         )
 
 
 @dataclasses.dataclass(frozen=True)
 class JobResult:
-    id: value_objects.UniqueId
     batch_id: value_objects.UniqueId
-    job_name: value_objects.JobName
-    test_results: typing.FrozenSet[job_test_result.JobTestResult]
     execution_millis: typing.Optional[value_objects.ExecutionMillis]
-    execution_success_or_failure: typing.Optional[value_objects.Result]
-    running: value_objects.Flag
+    status: job_status.JobStatus
+    id: value_objects.UniqueId
+    job_name: value_objects.JobName
     ts: value_objects.Timestamp
-
-    def __post_init__(self) -> None:
-        if self.running.value is True:
-            if self.execution_success_or_failure:
-                raise exceptions.InvalidJobResult(
-                    f"If a job is still running, execution_success_or_failure should be None, "
-                    f"but got {self.execution_success_or_failure!r}."
-                )
-            if self.execution_millis:
-                raise exceptions.InvalidJobResult(
-                    f"If a job is running, execution_millis should be None, but got "
-                    f"{self.execution_millis!r}."
-                )
-        else:
-            if self.execution_success_or_failure is None:
-                raise exceptions.InvalidJobResult(
-                    "If a job has finished, then we should know the result, but "
-                    "execution_success_or_failure is None."
-                )
-            if self.execution_millis is None:
-                raise exceptions.InvalidJobResult(
-                    "If a job has finished, then we should know how many milliseconds it took to "
-                    "run, but execution_millis is None."
-                )
+    test_results: typing.FrozenSet[job_test_result.JobTestResult]
 
     @property
     def tests_failed(self) -> bool:
@@ -92,12 +66,24 @@ class JobResult:
     def to_dto(self) -> JobResultDTO:
         test_results = [r.to_dto() for r in self.test_results]
 
-        if self.execution_success_or_failure is None:
+        if isinstance(self.status, job_status.JobFailed):
+            error_occurred: typing.Optional[bool] = True
+            error_message: typing.Optional[str] = self.status.error_message.value
+            running = False
+        elif isinstance(self.status, job_status.JobInProgress):
             error_occurred = None
-            error_msg = None
+            error_message = None
+            running = True
+        elif isinstance(self.status, job_status.JobSkipped):
+            error_occurred = False
+            error_message = None
+            running = False
+        elif isinstance(self.status, job_status.JobRanSuccessfully):
+            error_occurred = False
+            error_message = None
+            running = False
         else:
-            error_occurred = self.execution_success_or_failure.is_failure
-            error_msg = self.execution_success_or_failure.failure_message_or_none
+            raise ValueError(f"Expected an instance of job_status.JobStatus, but got {self.status!r}.")
 
         if self.execution_millis is None:
             execution_millis = None
@@ -111,7 +97,25 @@ class JobResult:
             test_results=test_results,
             execution_millis=execution_millis,
             execution_error_occurred=error_occurred,
-            execution_error_message=error_msg,
-            running=self.running.value,
+            execution_error_message=error_message,
+            running=running,
             ts=self.ts.value,
+        )
+
+    @staticmethod
+    def running(
+        *,
+        job_status_id: value_objects.UniqueId,
+        batch_id: value_objects.UniqueId,
+        job_name: value_objects.JobName,
+        ts: value_objects.Timestamp,
+    ) -> JobResult:
+        return JobResult(
+            id=job_status_id,
+            batch_id=batch_id,
+            job_name=job_name,
+            ts=ts,
+            test_results=frozenset(),
+            execution_millis=None,
+            status=job_status.JobStatus.in_progress(),
         )

@@ -2,7 +2,7 @@ import dataclasses
 import datetime
 import typing
 
-from lime_etl.domain import batch_result, job_result, job_test_result, value_objects
+from lime_etl.domain import batch_status, job_result, job_test_result, value_objects
 
 
 def describe_id(id_value: value_objects.UniqueId, /) -> str:
@@ -59,7 +59,7 @@ def job_result_to_deterministic_dict(
 
 
 def batch_result_to_deterministic_dict(
-    result: batch_result.BatchResult,
+    result: batch_status.BatchStatus,
 ) -> typing.Dict[str, typing.Any]:
     d = dataclasses.asdict(result.to_dto())
     d["id"] = describe_id(result.id)

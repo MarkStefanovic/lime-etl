@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import batch_result, value_objects
+from lime_etl.domain import batch_status, value_objects
 
 
 __all__ = (
@@ -16,18 +16,18 @@ __all__ = (
 )
 
 
-class BatchRepository(lu.Repository[batch_result.BatchResultDTO], abc.ABC):
+class BatchRepository(lu.Repository[batch_status.BatchStatusDTO], abc.ABC):
     @abc.abstractmethod
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep, /) -> int:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_latest(self) -> typing.Optional[batch_result.BatchResultDTO]:
+    def get_latest(self) -> typing.Optional[batch_status.BatchStatusDTO]:
         raise NotImplementedError
 
 
 class SqlAlchemyBatchRepository(
-    BatchRepository, lu.SqlAlchemyRepository[batch_result.BatchResultDTO]
+    BatchRepository, lu.SqlAlchemyRepository[batch_status.BatchStatusDTO]
 ):
     def __init__(
         self,
@@ -43,9 +43,9 @@ class SqlAlchemyBatchRepository(
         # We need to delete batches one by one to trigger cascade deletes, a bulk update will
         # not trigger them, and we don't want to rely on specific database implementations, so
         # we cannot use ondelete='CASCADE' on the foreign key columns.
-        batches: typing.List[batch_result.BatchResultDTO] = (
-            self.session.query(batch_result.BatchResultDTO)
-            .filter(batch_result.BatchResultDTO.ts < cutoff)
+        batches: typing.List[batch_status.BatchStatusDTO] = (
+            self.session.query(batch_status.BatchStatusDTO)
+            .filter(batch_status.BatchStatusDTO.ts < cutoff)
             .all()
         )
         for b in batches:
@@ -53,14 +53,14 @@ class SqlAlchemyBatchRepository(
         return len(batches)
 
     @property
-    def entity_type(self) -> typing.Type[batch_result.BatchResultDTO]:
-        return batch_result.BatchResultDTO
+    def entity_type(self) -> typing.Type[batch_status.BatchStatusDTO]:
+        return batch_status.BatchStatusDTO
 
-    def get_latest(self) -> typing.Optional[batch_result.BatchResultDTO]:
+    def get_latest(self) -> typing.Optional[batch_status.BatchStatusDTO]:
         # noinspection PyTypeChecker
         return (
-            self.session.query(batch_result.BatchResultDTO)
-            .order_by(sa.desc(batch_result.BatchResultDTO.ts))  # type: ignore
+            self.session.query(batch_status.BatchStatusDTO)
+            .order_by(sa.desc(batch_status.BatchStatusDTO.ts))  # type: ignore
             .first()
         )
 

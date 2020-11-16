@@ -13,9 +13,9 @@ from lime_etl.adapters import (
     job_repository,
     timestamp_adapter,
 )
-from lime_etl.adapters.admin_orm import metadata, start_mappers
+from lime_etl.adapters.admin_orm import admin_metadata, start_mappers
 from lime_etl.domain import (
-    batch_result,
+    batch_status,
     batch_log_entry,
     job_log_entry,
     job_result,
@@ -28,7 +28,7 @@ from lime_etl.services import admin_unit_of_work
 def in_memory_db() -> sa.engine.Engine:
     engine = sa.create_engine("sqlite:///:memory:", echo=True)
     # engine = create_engine("sqlite:///:memory:")
-    metadata.create_all(engine)
+    admin_metadata.create_all(engine)
     return engine
 
 
@@ -161,12 +161,12 @@ class DummyJobLogRepository(
 
 class DummyBatchRepository(
     batch_repository.BatchRepository,
-    lu.DummyRepository[batch_result.BatchResultDTO],
+    lu.DummyRepository[batch_status.BatchStatusDTO],
 ):
     def __init__(
         self,
         initial_values: typing.Optional[
-            typing.List[batch_result.BatchResultDTO]
+            typing.List[batch_status.BatchStatusDTO]
         ] = None,
     ) -> None:
         super().__init__(initial_values=initial_values, key_fn=lambda o: o.id)
@@ -178,7 +178,7 @@ class DummyBatchRepository(
         self._current_state = [e for e in self.all() if e.ts > cutoff]
         return len(self._current_state)
 
-    def get_latest(self) -> typing.Optional[batch_result.BatchResultDTO]:
+    def get_latest(self) -> typing.Optional[batch_status.BatchStatusDTO]:
         return sorted(self._current_state, key=lambda e: e.ts)[-1]
 
     @classmethod
@@ -259,7 +259,7 @@ def postgres_db_uri() -> str:
 @pytest.fixture
 def postgres_db(postgres_db_uri: str) -> sa.engine.Engine:
     engine = sa.create_engine(postgres_db_uri, isolation_level="SERIALIZABLE")
-    metadata.create_all(engine)
+    admin_metadata.create_all(engine)
     return engine
 
 

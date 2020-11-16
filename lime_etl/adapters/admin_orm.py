@@ -13,7 +13,7 @@ from sqlalchemy.orm import mapper, relationship
 from sqlalchemy.orm.base import _is_mapped_class  # type: ignore
 
 from lime_etl.domain import (
-    batch_result,
+    batch_status,
     job_result,
     job_log_entry,
     job_test_result,
@@ -23,17 +23,17 @@ from lime_etl.domain import (
 
 
 __all__ = (
-    "metadata",
+    "admin_metadata",
     "set_schema",
     "start_mappers",
 )
 
-metadata = MetaData()
+admin_metadata = MetaData()
 
 
 batches = Table(
     "batches",
-    metadata,
+    admin_metadata,
     Column("id", String(32), primary_key=True),
     Column("name", String(200), nullable=False),
     Column("execution_millis", Integer, nullable=True),
@@ -45,7 +45,7 @@ batches = Table(
 
 batch_log = Table(
     "batch_log",
-    metadata,
+    admin_metadata,
     Column("id", String(32), primary_key=True),
     Column("batch_id", String(32), nullable=False),
     Column("log_level", Enum(value_objects.LogLevelOption)),
@@ -55,7 +55,7 @@ batch_log = Table(
 
 job_log = Table(
     "job_log",
-    metadata,
+    admin_metadata,
     Column("id", String(32), primary_key=True),
     Column("batch_id", String(32), nullable=False),
     Column("job_id", String(32), nullable=False),
@@ -66,7 +66,7 @@ job_log = Table(
 
 jobs = Table(
     "jobs",
-    metadata,
+    admin_metadata,
     Column("id", String(32), primary_key=True),
     Column("batch_id", ForeignKey("batches.id")),
     Column("job_name", String(200), nullable=False),
@@ -79,7 +79,7 @@ jobs = Table(
 
 job_test_results = Table(
     "job_test_results",
-    metadata,
+    admin_metadata,
     Column("id", String(32), primary_key=True),
     Column("job_id", ForeignKey("jobs.id")),
     Column("test_name", String(200), nullable=False),
@@ -93,7 +93,7 @@ job_test_results = Table(
 
 
 def set_schema(schema: value_objects.SchemaName) -> None:
-    for table_name, table in metadata.tables.items():
+    for table_name, table in admin_metadata.tables.items():
         table.schema = schema.value
 
 
@@ -116,7 +116,7 @@ def start_mappers() -> None:
             },
         )
         mapper(
-            batch_result.BatchResultDTO,
+            batch_status.BatchStatusDTO,
             batches,
             properties={
                 "job_results": relationship(

@@ -2,31 +2,26 @@ import datetime
 import traceback
 import typing
 
-from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import (
-    exceptions,
-    job_result, job_test_result,
-    value_objects,
-)
+from lime_etl import adapters, domain
 from lime_etl.services import admin_unit_of_work, job_logging_service, job_spec
 
 import lime_uow as lu
 
 
-__all__ = ("default_job_runner",)
+__all__ = ("run_job",)
 
 
-def default_job_runner(
+def run_job(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
-    batch_id: value_objects.UniqueId,
+    batch_id: domain.UniqueId,
     batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
-    job_id: value_objects.UniqueId,
+    job_id: domain.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
     skip_tests: bool,
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> job_result.JobResult:
+    ts_adapter: adapters.TimestampAdapter,
+) -> domain.JobResult:
     result = _run_job_pre_handlers(
         admin_uow=admin_uow,
         batch_id=batch_id,
@@ -37,13 +32,11 @@ def default_job_runner(
         skip_tests=skip_tests,
         ts_adapter=ts_adapter,
     )
-    assert result.execution_success_or_failure is not None
-    if result.execution_success_or_failure.is_failure:
-        new_job = job.on_execution_error(
-            result.execution_success_or_failure.failure_message
-        )
+    assert result.status is not None
+    if isinstance(result, domain.JobFailed):
+        new_job = job.on_execution_error(result.error_message.value)
         if new_job:
-            return default_job_runner(
+            return run_job(
                 admin_uow=admin_uow,
                 batch_id=batch_id,
                 batch_uow=batch_uow,
@@ -58,7 +51,7 @@ def default_job_runner(
     elif any(test.test_failed for test in result.test_results):
         new_job = job.on_test_failure(result.test_results)
         if new_job:
-            return default_job_runner(
+            return run_job(
                 admin_uow=admin_uow,
                 batch_id=batch_id,
                 batch_uow=batch_uow,
@@ -77,70 +70,70 @@ def default_job_runner(
 def _run_job_pre_handlers(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
-    batch_id: value_objects.UniqueId,
+    batch_id: domain.UniqueId,
     batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
-    job_id: value_objects.UniqueId,
+    job_id: domain.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
     skip_tests: bool,
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> job_result.JobResult:
+    ts_adapter: adapters.TimestampAdapter,
+) -> domain.JobResult:
     logger.log_info(f"Starting [{job.job_name.value}]...")
     start_time = ts_adapter.now()
     with admin_uow as uow:
         current_batch = uow.batch_repo.get(batch_id.value).to_domain()
 
     if current_batch is None:
-        raise exceptions.BatchNotFound(batch_id)
+        raise domain.exceptions.BatchNotFound(batch_id)
+
+    dep_exceptions = {
+        jr.job_name.value
+        for jr in current_batch.job_results
+        if jr.job_name in job.dependencies
+        and jr.status is not None
+        and isinstance(jr.status, domain.JobFailed)
+    }
+    dep_test_failures = {
+        jr.job_name.value
+        for jr in current_batch.job_results
+        if jr.job_name in job.dependencies and jr.tests_failed
+    }
+    if dep_exceptions and dep_test_failures:
+        errs = ", ".join(sorted(dep_exceptions))
+        test_failures = ", ".join(sorted(dep_test_failures))
+        raise Exception(
+            f"The following dependencies failed to execute: {errs} "
+            f"and the following jobs had test failures: {test_failures}"
+        )
+    elif dep_exceptions:
+        errs = ", ".join(sorted(dep_exceptions))
+        raise Exception(f"The following dependencies failed to execute: {errs}")
     else:
-        dep_exceptions = {
-            jr.job_name.value
-            for jr in current_batch.job_results
-            if jr.job_name in job.dependencies
-            and jr.execution_success_or_failure is not None
-            and jr.execution_success_or_failure.is_failure
-        }
-        dep_test_failures = {
-            jr.job_name.value
-            for jr in current_batch.job_results
-            if jr.job_name in job.dependencies and jr.tests_failed
-        }
-        if dep_exceptions and dep_test_failures:
-            errs = ", ".join(sorted(dep_exceptions))
-            test_failures = ", ".join(sorted(dep_test_failures))
-            raise Exception(
-                f"The following dependencies failed to execute: {errs} "
-                f"and the following jobs had test failures: {test_failures}"
-            )
-        elif dep_exceptions:
-            errs = ", ".join(sorted(dep_exceptions))
-            raise Exception(f"The following dependencies failed to execute: {errs}")
-        else:
-            result = _run_jobs_with_tests(
-                batch_id=batch_id,
-                batch_uow=batch_uow,
-                job=job,
-                job_id=job_id,
-                logger=logger,
-                skip_tests=skip_tests,
-                start_time=start_time,
-                ts_adapter=ts_adapter,
-            )
-            logger.log_info(f"Finished running [{job.job_name.value}].")
-            return result
+        result = _run_jobs_with_tests(
+            batch_id=batch_id,
+            batch_uow=batch_uow,
+            job=job,
+            job_id=job_id,
+            logger=logger,
+            skip_tests=skip_tests,
+            start_time=start_time,
+            ts_adapter=ts_adapter,
+        )
+        logger.log_info(f"Finished running [{job.job_name.value}].")
+        return result
 
 
 def _run_jobs_with_tests(
     *,
-    batch_id: value_objects.UniqueId,
+    batch_id: domain.UniqueId,
     batch_uow: lu.UnitOfWork,
     job: job_spec.JobSpec,
-    job_id: value_objects.UniqueId,
+    job_id: domain.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
     skip_tests: bool,
-    start_time: value_objects.Timestamp,
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> job_result.JobResult:
+    start_time: domain.Timestamp,
+    ts_adapter: adapters.TimestampAdapter,
+) -> domain.JobResult:
     result, execution_millis = _run_with_retry(
         batch_uow=batch_uow,
         job=job,
@@ -150,12 +143,10 @@ def _run_jobs_with_tests(
         start_time=start_time,
         ts_adapter=ts_adapter,
     )
-    if result.is_success:
+    if isinstance(result, domain.JobRanSuccessfully):
         logger.log_info(f"[{job.job_name.value}] finished successfully.")
         if skip_tests:
-            full_test_results: typing.FrozenSet[
-                job_test_result.JobTestResult
-            ] = frozenset()
+            full_test_results: typing.FrozenSet[domain.JobTestResult] = frozenset()
         else:
             logger.log_info(f"Running the tests for [{job.job_name.value}]...")
             test_start_time = datetime.datetime.now()
@@ -175,15 +166,13 @@ def _run_jobs_with_tests(
                     f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
                 )
                 full_test_results = frozenset(
-                    job_test_result.JobTestResult(
-                        id=value_objects.UniqueId.generate(),
+                    domain.JobTestResult(
+                        id=domain.UniqueId.generate(),
                         job_id=job_id,
                         test_name=test_result.test_name,
                         test_success_or_failure=test_result.test_success_or_failure,
-                        execution_millis=value_objects.ExecutionMillis(
-                            test_execution_millis
-                        ),
-                        execution_success_or_failure=value_objects.Result.success(),
+                        execution_millis=domain.ExecutionMillis(test_execution_millis),
+                        execution_success_or_failure=domain.Result.success(),
                         ts=start_time,
                     )
                     for test_result in test_results
@@ -191,21 +180,25 @@ def _run_jobs_with_tests(
             else:
                 logger.log_info("The job test method returned no results.")
                 full_test_results = frozenset()
-    else:
+    elif isinstance(result, domain.JobFailed):
         logger.log_info(
             f"An exception occurred while running [{job.job_name.value}]: "
-            f"{result.failure_message}."
+            f"{result.error_message}."
         )
         full_test_results = frozenset()
+    elif isinstance(result, domain.JobSkipped):
+        logger.log_info(f"[{job.job_name.value}] was skipped.")
+        full_test_results = frozenset()
+    else:
+        raise TypeError(f"Unrecognized job result: {result!r}")
 
-    return job_result.JobResult(
+    return domain.JobResult(
         id=job_id,
         batch_id=batch_id,
         job_name=job.job_name,
         test_results=full_test_results,
         execution_millis=execution_millis,
-        execution_success_or_failure=value_objects.Result.success(),
-        running=value_objects.Flag(False),
+        status=domain.JobStatus.success(),
         ts=start_time,
     )
 
@@ -217,14 +210,14 @@ def _run_with_retry(
     logger: job_logging_service.AbstractJobLoggingService,
     max_retries: int,
     retries_so_far: int,
-    start_time: value_objects.Timestamp,
-    ts_adapter: timestamp_adapter.TimestampAdapter,
-) -> typing.Tuple[value_objects.Result, value_objects.ExecutionMillis]:
+    start_time: domain.Timestamp,
+    ts_adapter: adapters.TimestampAdapter,
+) -> typing.Tuple[domain.JobStatus, domain.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(batch_uow, logger) or value_objects.Result.success()
+        result = job.run(batch_uow, logger) or domain.JobStatus.success()
         end_time = ts_adapter.now()
-        execution_millis = value_objects.ExecutionMillis.calculate(
+        execution_millis = domain.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time
         )
         return result, execution_millis

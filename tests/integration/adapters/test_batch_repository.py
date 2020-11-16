@@ -3,7 +3,13 @@ import datetime
 from sqlalchemy.orm import Session
 
 from lime_etl.adapters import batch_repository
-from lime_etl.domain import batch_result, job_result, job_test_result, value_objects
+from lime_etl.domain import (
+    batch_status,
+    job_result,
+    job_status,
+    job_test_result,
+    value_objects,
+)
 from tests import conftest
 
 
@@ -23,13 +29,12 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
         id=job_id,
         batch_id=batch_id,
         job_name=value_objects.JobName("test_table"),
-        execution_success_or_failure=value_objects.Result.success(),
+        status=job_status.JobStatus.success(),
         execution_millis=value_objects.ExecutionMillis(10),
         test_results=frozenset([test_result]),
-        running=value_objects.Flag(False),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
     )
-    new_batch = batch_result.BatchResult(
+    new_batch = batch_status.BatchStatus(
         id=batch_id,
         name=value_objects.BatchName("test_batch"),
         execution_millis=value_objects.ExecutionMillis(10),
@@ -72,7 +77,7 @@ def test_sqlalchemy_batch_repository_update(
     repo = batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
-    new_batch = batch_result.BatchResult(
+    new_batch = batch_status.BatchStatus(
         id=batch_id,
         name=value_objects.BatchName("test_batch"),
         execution_millis=None,
@@ -82,7 +87,7 @@ def test_sqlalchemy_batch_repository_update(
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     repo.add(new_batch.to_dto())
-    new_batch2 = batch_result.BatchResult(
+    new_batch2 = batch_status.BatchStatus(
         id=batch_id,
         name=value_objects.BatchName("test_batch"),
         execution_millis=value_objects.ExecutionMillis(10),
@@ -204,7 +209,7 @@ def test_sqlalchemy_batch_repository_get_latest(session: Session) -> None:
         session=session, ts_adapter=ts_adapter
     )
     result = repo.get_latest()
-    expected = batch_result.BatchResultDTO(
+    expected = batch_status.BatchStatusDTO(
         id="b2396d94bd55a455baf80a26209349d6",
         name="test_batch",
         execution_error_message=None,

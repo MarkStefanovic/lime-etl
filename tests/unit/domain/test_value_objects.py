@@ -40,7 +40,6 @@ def test_value_object_accepts_values_of_correct_type(cls: type, value: Any) -> N
         (value_objects.Flag, "true"),
         (value_objects.JobName, 123),
         (value_objects.LogLevel, "info"),
-        (value_objects.LogMessage, 123),
         (value_objects.MaxRetries, "3"),
         (value_objects.Password, 123),
         (value_objects.Result, "success"),

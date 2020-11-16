@@ -15,6 +15,7 @@ __all__ = ("BatchSpec",)
 class BatchSpec(abc.ABC, typing.Generic[UOW]):
     def __init__(
         self,
+        *,
         batch_name: value_objects.BatchName,
         batch_id: typing.Optional[value_objects.UniqueId] = None,
         skip_tests: value_objects.Flag = value_objects.Flag(False),

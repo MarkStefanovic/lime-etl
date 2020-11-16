@@ -41,7 +41,7 @@ class DeleteOldLogs(job_spec.JobSpec):
         self,
         uow: lu.UnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
-    ) -> domain.Result:
+    ) -> domain.JobStatus:
         with self._admin_uow as uow:
             uow.batch_log_repo.delete_old_entries(days_to_keep=self._days_to_keep)
             logger.log_info(
@@ -59,7 +59,7 @@ class DeleteOldLogs(job_spec.JobSpec):
             )
             uow.save()
 
-        return domain.Result.success()
+        return domain.JobStatus.success()
 
     def test(
         self,

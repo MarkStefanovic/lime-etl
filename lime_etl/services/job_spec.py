@@ -62,7 +62,7 @@ class JobSpec(abc.ABC):
         self,
         uow: lu.UnitOfWork,
         logger: job_logging_service.AbstractJobLoggingService,
-    ) -> domain.Result:
+    ) -> domain.JobStatus:
         raise NotImplementedError
 
     @abc.abstractmethod

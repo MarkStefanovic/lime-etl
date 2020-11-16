@@ -484,17 +484,14 @@ class LogMessage(ValueObject):
             raise ValueError(
                 f"{self.__class__.__name__} value is required, but got {value!r}."
             )
-        elif isinstance(value, str):
-            if len(value) > 2000:
-                warnings.warn(
-                    f"{self.__class__.__name__} must be <= 2000 characters long, but the message "
-                    f"is {len(value)}. It has been truncated to fit."
-                )
-                value = value[-2000:]
-        else:
-            raise TypeError(
-                f"{self.__class__.__name__} expects a str, but got {value!r}"
+
+        value = str(value)
+        if len(value) > 2000:
+            warnings.warn(
+                f"{self.__class__.__name__} must be <= 2000 characters long, but the message "
+                f"is {len(value)}. It has been truncated to fit."
             )
+            value = value[-2000:]
 
         super().__init__(value)
 

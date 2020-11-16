@@ -2,13 +2,13 @@ import dataclasses
 
 import typing
 
-from lime_etl.domain import batch_result, value_objects
+from lime_etl.domain import batch_status, value_objects
 
 
 @dataclasses.dataclass(frozen=True)
 class BatchDelta:
-    current_results: batch_result.BatchResult
-    previous_results: typing.Optional[batch_result.BatchResult]
+    current_results: batch_status.BatchStatus
+    previous_results: typing.Optional[batch_status.BatchStatus]
 
     @property
     def common_jobs(self) -> typing.Set[value_objects.JobName]:

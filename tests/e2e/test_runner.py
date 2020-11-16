@@ -68,8 +68,8 @@ class MessageUOW(lu.UnitOfWork):
         return {MessageRepo(shared_resources.get(lu.SqlAlchemySession))}
 
     @property
-    def message_repo(self) -> MessageRepo:
-        return self.get(MessageRepo)
+    def message_repo(self) -> AbstractMessageRepo:
+        return self.get(AbstractMessageRepo)  # type: ignore
 
 
 class MessageJob(le.JobSpec):
@@ -96,11 +96,11 @@ class MessageJob(le.JobSpec):
         self,
         uow: lu.UnitOfWork,
         logger: le.AbstractJobLoggingService,
-    ) -> le.Result:
+    ) -> le.JobStatus:
         with self._uow as uow:
             uow.message_repo.add_all(self._messages)
             uow.save()
-        return le.Result.success()
+        return le.JobStatus.success()
 
     @property
     def dependencies(self) -> typing.Tuple[le.JobName, ...]:
@@ -626,7 +626,7 @@ def test_run_with_duplicate_job_names(
             batch=batch,
         )
     assert (
-        "The following job names included more than once: [hello_world_job] (2)."
+        "The following job names were included more than once: [hello_world_job] (2)."
         in str(e.value)
     )
 

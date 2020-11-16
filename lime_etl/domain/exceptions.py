@@ -52,7 +52,7 @@ class DuplicateJobNamesError(LimeETLException):
             f"[{job_name.value}] ({ct})"
             for job_name, ct in duplicate_job_counts.items()
         )
-        err_msg = f"The following job names included more than once: {dupes_msg}."
+        err_msg = f"The following job names were included more than once: {dupes_msg}."
         super().__init__(err_msg)
 
 

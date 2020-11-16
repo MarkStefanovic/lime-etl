@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from lime_etl.adapters import job_repository
-from lime_etl.domain import job_result, job_test_result, value_objects
+from lime_etl.domain import job_result, job_status, job_test_result, value_objects
 from tests import conftest
 
 
@@ -23,10 +23,9 @@ def test_sqlalchemy_job_repository_add(session: Session) -> None:
         id=job_id,
         batch_id=batch_id,
         job_name=value_objects.JobName("test_table"),
-        execution_success_or_failure=value_objects.Result.success(),
+        status=job_status.JobStatus.success(),
         execution_millis=value_objects.ExecutionMillis(10),
         test_results=frozenset([test_result]),
-        running=value_objects.Flag(False),
         ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
     )
     ts_adapter = conftest.static_timestamp_adapter(
@@ -71,8 +70,7 @@ def test_sqlalchemy_job_repository_update(
         batch_id=batch_id,
         job_name=value_objects.JobName("test_job"),
         execution_millis=None,
-        execution_success_or_failure=None,
-        running=value_objects.Flag(True),
+        status=job_status.JobStatus.in_progress(),
         test_results=frozenset(),
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
@@ -82,8 +80,7 @@ def test_sqlalchemy_job_repository_update(
         batch_id=batch_id,
         job_name=value_objects.JobName("test_job"),
         execution_millis=value_objects.ExecutionMillis(10),
-        execution_success_or_failure=value_objects.Result.success(),
-        running=value_objects.Flag(False),
+        status=job_status.JobStatus.success(),
         test_results=frozenset(),
         ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )

@@ -3,19 +3,17 @@ from __future__ import annotations
 import multiprocessing
 import typing
 
-import lime_uow as lu
 import sqlalchemy as sa
 from sqlalchemy import orm
 
 from lime_etl import domain, adapters, services
-from lime_etl.adapters import admin_orm
 
 
 def run_batch(
     batch: services.BatchSpec[typing.Any],
     admin_engine_or_uri: typing.Union[sa.engine.Engine, str],
     admin_schema: typing.Optional[str] = "etl",
-) -> domain.BatchResult:
+) -> domain.BatchStatus:
     session_factory = adapters.admin_session_factory(
         engine_or_uri=admin_engine_or_uri,
         schema=admin_schema,
@@ -46,7 +44,7 @@ def run_admin(
     schema: typing.Optional[str] = "etl",
     skip_tests: bool = False,
     days_logs_to_keep: int = 3,
-) -> domain.BatchResult:
+) -> domain.BatchStatus:
     if type(admin_engine_or_uri) is sa.engine.Engine:
         engine: typing.Optional[sa.engine.Engine] = typing.cast(
             sa.engine.Engine, admin_engine_or_uri
@@ -54,7 +52,7 @@ def run_admin(
         db_uri = domain.DbUri(str(typing.cast(sa.engine.Engine, engine).url))
     else:
         engine = sa.create_engine(admin_engine_or_uri)
-        admin_orm.metadata.create_all(bind=engine)
+        adapters.admin_metadata.create_all(bind=engine)
         db_uri = domain.DbUri(typing.cast(str, admin_engine_or_uri))
 
     admin_schema = domain.SchemaName(schema)
@@ -84,7 +82,7 @@ def run_batches_in_parallel(
     max_processes: int = 3,
     schema: typing.Optional[str] = "etl",
     timeout: typing.Optional[int] = None,
-) -> typing.List[domain.BatchResult]:
+) -> typing.List[domain.BatchStatus]:
     params = [(batch, admin_db_uri, schema) for batch in batches]
     with multiprocessing.Pool(max_processes) as pool:
         future = pool.starmap_async(run_batch, params)

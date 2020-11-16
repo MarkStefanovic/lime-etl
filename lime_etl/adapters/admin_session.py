@@ -37,5 +37,5 @@ def admin_session_factory(
         engine = typing.cast(sa.engine.Connectable, engine_or_uri)
     else:
         engine = sa.create_engine(engine_or_uri)
-    admin_orm.metadata.create_all(engine)
+    admin_orm.admin_metadata.create_all(engine)
     return orm.sessionmaker(bind=engine)
