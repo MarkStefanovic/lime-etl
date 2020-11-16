@@ -159,6 +159,8 @@ def _run_batch(
 
     job_results: typing.List[domain.JobResult] = []
     for ix, job in enumerate(jobs):
+        job_id = domain.UniqueId.generate()
+
         if job.dependencies and all(
             isinstance(r.status, (domain.JobSkipped, domain.JobFailed))
             for r in job_results
@@ -167,65 +169,85 @@ def _run_batch(
             batch_logger.log_info(
                 f"All the dependencies for [{job.job_name.value}] were skipped or failed so the job has been skipped."
             )
-            continue
-        current_ts = ts_adapter.now()
-        with admin_uow as uow:
-            last_ts = uow.job_repo.get_last_successful_ts(job.job_name)
-
-        if last_ts:
-            seconds_since_last_refresh = (
-                current_ts.value - last_ts.value
-            ).total_seconds()
-            if seconds_since_last_refresh < job.min_seconds_between_refreshes.value:
-                batch_logger.log_info(
-                    f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
-                    f"ago and it is set to refresh every {job.min_seconds_between_refreshes.value} seconds, "
-                    f"so there is no need to refresh again."
-                )
-                continue
-
-        job_id = domain.UniqueId.generate()
-        job_logger = batch_logger.create_job_logger()
-        result = domain.JobResult.running(
-            job_status_id=job_id,
-            batch_id=batch_id,
-            job_name=job.job_name,
-            ts=start_time,
-        )
-        with admin_uow as uow:
-            uow.job_repo.add(result.to_dto())
-            uow.save()
-
-        # noinspection PyBroadException
-        try:
-            result = job_runner.run_job(
-                admin_uow=admin_uow,
-                batch_uow=batch_uow,
-                job=job,
-                logger=job_logger,
-                batch_id=batch_id,
-                job_id=job_id,
-                skip_tests=skip_tests,
-                ts_adapter=ts_adapter,
-            )
-        except Exception as e:
-            millis = ts_adapter.get_elapsed_time(start_time)
-            batch_logger.log_error(str(traceback.format_exc(10)))
             result = domain.JobResult(
                 id=job_id,
                 batch_id=batch_id,
                 job_name=job.job_name,
                 test_results=frozenset(),
-                execution_millis=millis,
-                status=domain.JobStatus.failed(str(e)),
-                ts=result.ts,
+                execution_millis=domain.ExecutionMillis(0),
+                status=domain.JobStatus.skipped("Dependencies were skipped or failed."),
+                ts=start_time,
             )
-        finally:
-            assert result is not None
-            job_results.append(result)
+        else:
+            current_ts = ts_adapter.now()
             with admin_uow as uow:
-                uow.job_repo.update(result.to_dto())
-                admin_uow.save()
+                last_ts = uow.job_repo.get_last_successful_ts(job.job_name)
+
+            if last_ts:
+                seconds_since_last_refresh = (current_ts.value - last_ts.value).total_seconds()
+                time_to_run_again =  seconds_since_last_refresh < job.min_seconds_between_refreshes.value
+            else:
+                seconds_since_last_refresh = 0
+                time_to_run_again = True
+
+            if time_to_run_again:
+                job_logger = batch_logger.create_job_logger()
+                result = domain.JobResult.running(
+                    job_status_id=job_id,
+                    batch_id=batch_id,
+                    job_name=job.job_name,
+                    ts=start_time,
+                )
+                with admin_uow as uow:
+                    uow.job_repo.add(result.to_dto())
+                    uow.save()
+
+                # noinspection PyBroadException
+                try:
+                    result = job_runner.run_job(
+                        admin_uow=admin_uow,
+                        batch_uow=batch_uow,
+                        job=job,
+                        logger=job_logger,
+                        batch_id=batch_id,
+                        job_id=job_id,
+                        skip_tests=skip_tests,
+                        ts_adapter=ts_adapter,
+                    )
+                except Exception as e:
+                    millis = ts_adapter.get_elapsed_time(start_time)
+                    batch_logger.log_error(str(traceback.format_exc(10)))
+                    result = domain.JobResult(
+                        id=job_id,
+                        batch_id=batch_id,
+                        job_name=job.job_name,
+                        test_results=frozenset(),
+                        execution_millis=millis,
+                        status=domain.JobStatus.failed(str(e)),
+                        ts=result.ts,
+                    )
+            else:
+                batch_logger.log_info(
+                    f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
+                    f"ago and it is set to refresh every {job.min_seconds_between_refreshes.value} seconds, "
+                    f"so there is no need to refresh again."
+                )
+                result = domain.JobResult(
+                    id=job_id,
+                    batch_id=batch_id,
+                    job_name=job.job_name,
+                    test_results=frozenset(),
+                    execution_millis=domain.ExecutionMillis(0),
+                    status=domain.JobStatus.skipped(
+                        f"The job ran {seconds_since_last_refresh:.0f} seconds ago, so it is not time yet."
+                    ),
+                    ts=start_time,
+                )
+
+        job_results.append(result)
+        with admin_uow as uow:
+            uow.job_repo.update(result.to_dto())
+            admin_uow.save()
 
     end_time = ts_adapter.now()
 
