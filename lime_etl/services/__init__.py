@@ -4,5 +4,4 @@ from lime_etl.services.batch_logging_service import *
 from lime_etl.services.job_logging_service import *
 from lime_etl.services.job_spec import *
 from lime_etl.services.batch_spec import *
-from lime_etl.services.job_runner import *
 from lime_etl.services.batch_runner import *

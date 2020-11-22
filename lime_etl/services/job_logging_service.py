@@ -1,11 +1,8 @@
 import abc
-import warnings
 
 from sqlalchemy import orm
 
-from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import job_log_entry, value_objects
-
+from lime_etl import domain, adapters
 
 __all__ = (
     "AbstractJobLoggingService",
@@ -27,10 +24,10 @@ class AbstractJobLoggingService(abc.ABC):
 class JobLoggingService(AbstractJobLoggingService):
     def __init__(
         self,
-        batch_id: value_objects.UniqueId,
-        job_id: value_objects.UniqueId,
+        batch_id: domain.UniqueId,
+        job_id: domain.UniqueId,
         session: orm.Session,
-        ts_adapter: timestamp_adapter.TimestampAdapter,
+        ts_adapter: adapters.TimestampAdapter,
     ):
         self._batch_id = batch_id
         self._job_id = job_id
@@ -39,13 +36,13 @@ class JobLoggingService(AbstractJobLoggingService):
 
         super().__init__()
 
-    def _log(self, level: value_objects.LogLevel, message: str) -> None:
-        log_entry = job_log_entry.JobLogEntry(
-            id=value_objects.UniqueId.generate(),
+    def _log(self, level: domain.LogLevel, message: str) -> None:
+        log_entry = domain.JobLogEntry(
+            id=domain.UniqueId.generate(),
             batch_id=self._batch_id,
             job_id=self._job_id,
             log_level=level,
-            message=value_objects.LogMessage(message),
+            message=domain.LogMessage(message),
             ts=self._ts_adapter.now(),
         )
         print(log_entry)
@@ -55,13 +52,13 @@ class JobLoggingService(AbstractJobLoggingService):
 
     def log_error(self, message: str, /) -> None:
         return self._log(
-            level=value_objects.LogLevel.error(),
+            level=domain.LogLevel.error(),
             message=message,
         )
 
     def log_info(self, message: str, /) -> None:
         return self._log(
-            level=value_objects.LogLevel.info(),
+            level=domain.LogLevel.info(),
             message=message,
         )
 

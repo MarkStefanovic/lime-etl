@@ -1,12 +1,12 @@
-FROM python:3.8-alpine
+FROM python:3.8-buster
 
-RUN apk add --no-cache --virtual .build-deps gcc postgresql-dev musl-dev python3-dev
-RUN apk add libpq
+RUN apt-get update
+RUN apt-get install -y tdsodbc unixodbc-dev
+RUN apt install unixodbc-bin -y
+RUN apt-get clean -y
 
 COPY requirements.txt /tmp/
 RUN pip install -r /tmp/requirements.txt
-
-RUN apk del --no-cache .build-deps
 
 RUN mkdir -p /src
 COPY lime_etl /src/

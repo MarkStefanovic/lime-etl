@@ -25,8 +25,19 @@ from lime_etl.services import admin_unit_of_work
 
 
 @pytest.fixture
-def in_memory_db() -> sa.engine.Engine:
-    engine = sa.create_engine("sqlite:///:memory:", echo=True)
+def in_memory_db_uri() -> str:
+    return "sqlite:///:memory:"
+
+
+@pytest.fixture
+def in_memory_db(in_memory_db_uri: str) -> sa.engine.Engine:
+    engine = sa.create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=sa.pool.StaticPool,
+        echo=True,
+    )
+    # engine = sa.create_engine(in_memory_db_uri, echo=True)
     # engine = create_engine("sqlite:///:memory:")
     admin_metadata.create_all(engine)
     return engine
@@ -56,21 +67,9 @@ class StaticTimestampAdapter(timestamp_adapter.TimestampAdapter):
     def __init__(self, dt: datetime.datetime):
         self.dt = dt
 
-    def close(self) -> None:
-        pass
-
     @classmethod
     def interface(cls) -> typing.Type[timestamp_adapter.TimestampAdapter]:
         return timestamp_adapter.TimestampAdapter
-
-    def open(self) -> None:
-        pass
-
-    def rollback(self) -> None:
-        pass
-
-    def save(self) -> None:
-        pass
 
     def now(self) -> value_objects.Timestamp:
         return value_objects.Timestamp(self.dt)
@@ -192,11 +191,11 @@ class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
 
     @property
     def batch_repo(self) -> batch_repository.BatchRepository:
-        return self.get_resource(batch_repository.BatchRepository)  # type: ignore
+        return self.get(batch_repository.BatchRepository)  # type: ignore
 
     @property
     def batch_log_repo(self) -> batch_log_repository.BatchLogRepository:
-        return self.get_resource(batch_log_repository.BatchLogRepository)  # type: ignore
+        return self.get(batch_log_repository.BatchLogRepository)  # type: ignore
 
     def create_resources(
         self, shared_resources: lu.SharedResources
@@ -256,14 +255,18 @@ def postgres_db_uri() -> str:
     return f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
 
 
-@pytest.fixture
-def postgres_db(postgres_db_uri: str) -> sa.engine.Engine:
-    engine = sa.create_engine(postgres_db_uri, isolation_level="SERIALIZABLE")
+@pytest.fixture(scope="function")
+def postgres_db(postgres_db_uri: str) -> typing.Generator[sa.engine.Engine, None, None]:
+    engine = sa.create_engine(
+        postgres_db_uri, isolation_level="SERIALIZABLE", echo=True
+    )
+    admin_metadata.drop_all(engine)
     admin_metadata.create_all(engine)
-    return engine
+    yield engine
+    admin_metadata.drop_all(engine)
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def postgres_session(
     postgres_db: sa.engine.Engine,
 ) -> typing.Generator[orm.sessionmaker, None, None]:

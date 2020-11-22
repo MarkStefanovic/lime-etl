@@ -6,14 +6,7 @@ import typing
 import lime_uow as lu
 from sqlalchemy import orm
 
-from lime_etl.adapters import (
-    admin_session,
-    batch_log_repository,
-    batch_repository,
-    job_log_repository,
-    job_repository,
-    timestamp_adapter,
-)
+from lime_etl import adapters
 
 __all__ = (
     "AdminUnitOfWork",
@@ -24,27 +17,27 @@ __all__ = (
 class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
     @property
     @abc.abstractmethod
-    def batch_repo(self) -> batch_repository.BatchRepository:
+    def batch_repo(self) -> adapters.BatchRepository:
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def batch_log_repo(self) -> batch_log_repository.BatchLogRepository:
+    def batch_log_repo(self) -> adapters.BatchLogRepository:
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def job_repo(self) -> job_repository.JobRepository:
+    def job_repo(self) -> adapters.JobRepository:
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def job_log_repo(self) -> job_log_repository.JobLogRepository:
+    def job_log_repo(self) -> adapters.JobLogRepository:
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
+    def ts_adapter(self) -> adapters.TimestampAdapter:
         raise NotImplementedError
 
 
@@ -53,50 +46,50 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
     def __init__(
         self,
         session_factory: orm.sessionmaker,
-        ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
+        ts_adapter: adapters.TimestampAdapter = adapters.LocalTimestampAdapter(),
     ):
         super().__init__()
         self._session_factory = session_factory
         self._ts_adapter = ts_adapter
 
     @property
-    def batch_repo(self) -> batch_repository.BatchRepository:
-        return self.get(batch_repository.BatchRepository)  # type: ignore  # see mypy issue 5374
+    def batch_repo(self) -> adapters.BatchRepository:
+        return self.get(adapters.BatchRepository)  # type: ignore  # see mypy issue 5374
 
     @property
-    def batch_log_repo(self) -> batch_log_repository.BatchLogRepository:
-        return self.get(batch_log_repository.BatchLogRepository)  # type: ignore  # see mypy issue 5374
+    def batch_log_repo(self) -> adapters.BatchLogRepository:
+        return self.get(adapters.BatchLogRepository)  # type: ignore  # see mypy issue 5374
 
     def create_shared_resources(self) -> lu.SharedResources:
-        return lu.SharedResources(admin_session.SqlAlchemyAdminSession(self._session_factory))
+        return lu.SharedResources(adapters.SqlAlchemyAdminSession(self._session_factory))
 
     @property
-    def job_repo(self) -> job_repository.JobRepository:
-        return self.get(job_repository.JobRepository)  # type: ignore  # see mypy issue 5374
+    def job_repo(self) -> adapters.JobRepository:
+        return self.get(adapters.JobRepository)  # type: ignore  # see mypy issue 5374
 
     @property
-    def job_log_repo(self) -> job_log_repository.JobLogRepository:
-        return self.get(job_log_repository.JobLogRepository)  # type: ignore  # see mypy issue 5374
+    def job_log_repo(self) -> adapters.JobLogRepository:
+        return self.get(adapters.JobLogRepository)  # type: ignore  # see mypy issue 5374
 
     @property
-    def ts_adapter(self) -> timestamp_adapter.TimestampAdapter:
+    def ts_adapter(self) -> adapters.TimestampAdapter:
         return self._ts_adapter
 
     def create_resources(
         self, shared_resources: lu.SharedResources
     ) -> typing.Set[lu.Resource[typing.Any]]:
-        session = shared_resources.get(admin_session.SqlAlchemyAdminSession)
+        session = shared_resources.get(adapters.SqlAlchemyAdminSession)
         return {
-            batch_repository.SqlAlchemyBatchRepository(
+            adapters.SqlAlchemyBatchRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
-            batch_log_repository.SqlAlchemyBatchLogRepository(
+            adapters.SqlAlchemyBatchLogRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
-            job_repository.SqlAlchemyJobRepository(
+            adapters.SqlAlchemyJobRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
-            job_log_repository.SqlAlchemyJobLogRepository(
+            adapters.SqlAlchemyJobLogRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
         }

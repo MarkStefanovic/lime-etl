@@ -6,7 +6,7 @@ import typing
 
 import lime_uow as lu
 
-from lime_etl.domain import value_objects
+from lime_etl import domain
 
 
 __all__ = (
@@ -17,33 +17,19 @@ __all__ = (
 
 class TimestampAdapter(lu.Resource[None], abc.ABC):
     @abc.abstractmethod
-    def now(self) -> value_objects.Timestamp:
+    def now(self) -> domain.Timestamp:
         raise NotImplementedError
 
-    def get_elapsed_time(
-        self, start_ts: value_objects.Timestamp
-    ) -> value_objects.ExecutionMillis:
+    def get_elapsed_time(self, start_ts: domain.Timestamp) -> domain.ExecutionMillis:
         end_ts = self.now()
         millis = int((end_ts.value - start_ts.value).total_seconds() * 1000)
-        return value_objects.ExecutionMillis(millis)
+        return domain.ExecutionMillis(millis)
 
 
 class LocalTimestampAdapter(TimestampAdapter):
-    def close(self) -> None:
-        pass
-
     @classmethod
     def interface(cls) -> typing.Type[TimestampAdapter]:
         return TimestampAdapter
 
-    def open(self) -> None:
-        pass
-
-    def rollback(self) -> None:
-        pass
-
-    def save(self) -> None:
-        pass
-
-    def now(self) -> value_objects.Timestamp:
-        return value_objects.Timestamp(datetime.datetime.now())
+    def now(self) -> domain.Timestamp:
+        return domain.Timestamp(datetime.datetime.now())

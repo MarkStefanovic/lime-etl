@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import batch_status, value_objects
+from lime_etl import domain
 
 
 __all__ = (
@@ -16,18 +16,18 @@ __all__ = (
 )
 
 
-class BatchRepository(lu.Repository[batch_status.BatchStatusDTO], abc.ABC):
+class BatchRepository(lu.Repository[domain.BatchStatusDTO], abc.ABC):
     @abc.abstractmethod
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep, /) -> int:
+    def delete_old_entries(self, days_to_keep: domain.DaysToKeep, /) -> int:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_latest(self) -> typing.Optional[batch_status.BatchStatusDTO]:
+    def get_latest(self) -> typing.Optional[domain.BatchStatusDTO]:
         raise NotImplementedError
 
 
 class SqlAlchemyBatchRepository(
-    BatchRepository, lu.SqlAlchemyRepository[batch_status.BatchStatusDTO]
+    BatchRepository, lu.SqlAlchemyRepository[domain.BatchStatusDTO]
 ):
     def __init__(
         self,
@@ -37,15 +37,15 @@ class SqlAlchemyBatchRepository(
         super().__init__(session)
         self._ts_adapter = ts_adapter
 
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep, /) -> int:
+    def delete_old_entries(self, days_to_keep: domain.DaysToKeep, /) -> int:
         ts = self._ts_adapter.now().value
         cutoff: datetime.datetime = ts - datetime.timedelta(days=days_to_keep.value)
         # We need to delete batches one by one to trigger cascade deletes, a bulk update will
         # not trigger them, and we don't want to rely on specific database implementations, so
         # we cannot use ondelete='CASCADE' on the foreign key columns.
-        batches: typing.List[batch_status.BatchStatusDTO] = (
-            self.session.query(batch_status.BatchStatusDTO)
-            .filter(batch_status.BatchStatusDTO.ts < cutoff)
+        batches: typing.List[domain.BatchStatusDTO] = (
+            self.session.query(domain.BatchStatusDTO)
+            .filter(domain.BatchStatusDTO.ts < cutoff)
             .all()
         )
         for b in batches:
@@ -53,14 +53,14 @@ class SqlAlchemyBatchRepository(
         return len(batches)
 
     @property
-    def entity_type(self) -> typing.Type[batch_status.BatchStatusDTO]:
-        return batch_status.BatchStatusDTO
+    def entity_type(self) -> typing.Type[domain.BatchStatusDTO]:
+        return domain.BatchStatusDTO
 
-    def get_latest(self) -> typing.Optional[batch_status.BatchStatusDTO]:
+    def get_latest(self) -> typing.Optional[domain.BatchStatusDTO]:
         # noinspection PyTypeChecker
         return (
-            self.session.query(batch_status.BatchStatusDTO)
-            .order_by(sa.desc(batch_status.BatchStatusDTO.ts))  # type: ignore
+            self.session.query(domain.BatchStatusDTO)
+            .order_by(sa.desc(domain.BatchStatusDTO.ts))  # type: ignore
             .first()
         )
 

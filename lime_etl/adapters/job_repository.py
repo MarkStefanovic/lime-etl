@@ -5,7 +5,7 @@ import lime_uow as lu
 from sqlalchemy import desc, orm
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import job_result, value_objects
+from lime_etl import domain
 
 
 __all__ = (
@@ -14,22 +14,22 @@ __all__ = (
 )
 
 
-class JobRepository(lu.Repository[job_result.JobResultDTO], abc.ABC):
+class JobRepository(lu.Repository[domain.JobResultDTO], abc.ABC):
     @abc.abstractmethod
     def get_latest(
-        self, job_name: value_objects.JobName, /
-    ) -> typing.Optional[job_result.JobResultDTO]:
+        self, job_name: domain.JobName, /
+    ) -> typing.Optional[domain.JobResultDTO]:
         raise NotImplementedError
 
     @abc.abstractmethod
     def get_last_successful_ts(
-        self, job_name: value_objects.JobName, /
-    ) -> typing.Optional[value_objects.Timestamp]:
+        self, job_name: domain.JobName, /
+    ) -> typing.Optional[domain.Timestamp]:
         raise NotImplementedError
 
 
 class SqlAlchemyJobRepository(
-    JobRepository, lu.SqlAlchemyRepository[job_result.JobResultDTO]
+    JobRepository, lu.SqlAlchemyRepository[domain.JobResultDTO]
 ):
     def __init__(
         self,
@@ -40,34 +40,34 @@ class SqlAlchemyJobRepository(
         super().__init__(session)
 
     @property
-    def entity_type(self) -> typing.Type[job_result.JobResultDTO]:
-        return job_result.JobResultDTO
+    def entity_type(self) -> typing.Type[domain.JobResultDTO]:
+        return domain.JobResultDTO
 
     def get_latest(
-        self, job_name: value_objects.JobName, /
-    ) -> typing.Optional[job_result.JobResultDTO]:
+        self, job_name: domain.JobName, /
+    ) -> typing.Optional[domain.JobResultDTO]:
         # noinspection PyTypeChecker
         return (
-            self.session.query(job_result.JobResultDTO)
-            .order_by(desc(job_result.JobResultDTO.ts))  # type: ignore
+            self.session.query(domain.JobResultDTO)
+            .order_by(desc(domain.JobResultDTO.ts))  # type: ignore
             .first()
         )
 
     def get_last_successful_ts(
-        self, job_name: value_objects.JobName, /
-    ) -> typing.Optional[value_objects.Timestamp]:
+        self, job_name: domain.JobName, /
+    ) -> typing.Optional[domain.Timestamp]:
         # noinspection PyUnresolvedReferences,PyTypeChecker
-        jr: typing.Optional[job_result.JobResultDTO] = (
-            self._session.query(job_result.JobResultDTO)
-            .filter(job_result.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
-            .filter(job_result.JobResultDTO.execution_error_occurred.is_(False))  # type: ignore
-            .order_by(desc(job_result.JobResultDTO.ts))  # type: ignore
+        jr: typing.Optional[domain.JobResultDTO] = (
+            self._session.query(domain.JobResultDTO)
+            .filter(domain.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
+            .filter(domain.JobResultDTO.execution_error_occurred.is_(False))  # type: ignore
+            .order_by(desc(domain.JobResultDTO.ts))  # type: ignore
             .first()
         )
         if jr is None:
             return None
         else:
-            return value_objects.Timestamp(jr.ts)
+            return domain.Timestamp(jr.ts)
 
     @classmethod
     def interface(cls) -> typing.Type[JobRepository]:

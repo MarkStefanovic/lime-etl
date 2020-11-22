@@ -6,7 +6,7 @@ import lime_uow as lu
 from sqlalchemy import orm
 
 from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import job_log_entry, value_objects
+from lime_etl import domain
 
 
 __all__ = (
@@ -16,17 +16,17 @@ __all__ = (
 
 
 class JobLogRepository(
-    lu.Repository[job_log_entry.JobLogEntryDTO],
+    lu.Repository[domain.JobLogEntryDTO],
     abc.ABC,
 ):
     @abc.abstractmethod
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
+    def delete_old_entries(self, days_to_keep: domain.DaysToKeep) -> int:
         raise NotImplementedError
 
 
 class SqlAlchemyJobLogRepository(
     JobLogRepository,
-    lu.SqlAlchemyRepository[job_log_entry.JobLogEntryDTO],
+    lu.SqlAlchemyRepository[domain.JobLogEntryDTO],
 ):
     def __init__(
         self,
@@ -36,18 +36,18 @@ class SqlAlchemyJobLogRepository(
         self._ts_adapter = ts_adapter
         super().__init__(session)
 
-    def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep) -> int:
+    def delete_old_entries(self, days_to_keep: domain.DaysToKeep) -> int:
         ts = self._ts_adapter.now().value
         cutoff = ts - datetime.timedelta(days=days_to_keep.value)
         return (
-            self.session.query(job_log_entry.JobLogEntryDTO)
-            .filter(job_log_entry.JobLogEntryDTO.ts < cutoff)
+            self.session.query(domain.JobLogEntryDTO)
+            .filter(domain.JobLogEntryDTO.ts < cutoff)
             .delete()
         )
 
     @property
-    def entity_type(self) -> typing.Type[job_log_entry.JobLogEntryDTO]:
-        return job_log_entry.JobLogEntryDTO
+    def entity_type(self) -> typing.Type[domain.JobLogEntryDTO]:
+        return domain.JobLogEntryDTO
 
     @classmethod
     def interface(cls) -> typing.Type[JobLogRepository]:

@@ -1,10 +1,8 @@
 import abc
-import warnings
 
 from sqlalchemy import orm
 
-from lime_etl.adapters import timestamp_adapter
-from lime_etl.domain import batch_log_entry, value_objects
+from lime_etl import domain, adapters
 from lime_etl.services import job_logging_service
 
 __all__ = (
@@ -31,9 +29,9 @@ class AbstractBatchLoggingService(abc.ABC):
 class BatchLoggingService(AbstractBatchLoggingService):
     def __init__(
         self,
-        batch_id: value_objects.UniqueId,
+        batch_id: domain.UniqueId,
         session: orm.Session,
-        ts_adapter: timestamp_adapter.TimestampAdapter,
+        ts_adapter: adapters.TimestampAdapter,
     ):
         self._batch_id = batch_id
         self._session = session
@@ -43,17 +41,17 @@ class BatchLoggingService(AbstractBatchLoggingService):
     def create_job_logger(self) -> job_logging_service.JobLoggingService:
         return job_logging_service.JobLoggingService(
             batch_id=self._batch_id,
-            job_id=value_objects.UniqueId.generate(),
+            job_id=domain.UniqueId.generate(),
             session=self._session,
             ts_adapter=self._ts_adapter,
         )
 
-    def _log(self, level: value_objects.LogLevel, message: str) -> None:
-        log_entry = batch_log_entry.BatchLogEntry(
-            id=value_objects.UniqueId.generate(),
+    def _log(self, level: domain.LogLevel, message: str) -> None:
+        log_entry = domain.BatchLogEntry(
+            id=domain.UniqueId.generate(),
             batch_id=self._batch_id,
             log_level=level,
-            message=value_objects.LogMessage(message),
+            message=domain.LogMessage(message),
             ts=self._ts_adapter.now(),
         )
         self._session.add(log_entry.to_dto())
@@ -62,19 +60,19 @@ class BatchLoggingService(AbstractBatchLoggingService):
 
     def log_error(self, message: str, /) -> None:
         return self._log(
-            level=value_objects.LogLevel.error(),
+            level=domain.LogLevel.error(),
             message=message,
         )
 
     def log_info(self, message: str, /) -> None:
         return self._log(
-            level=value_objects.LogLevel.info(),
+            level=domain.LogLevel.info(),
             message=message,
         )
 
 
 class ConsoleBatchLoggingService(AbstractBatchLoggingService):
-    def __init__(self, batch_id: value_objects.UniqueId):
+    def __init__(self, batch_id: domain.UniqueId):
         self.batch_id = batch_id
         super().__init__()
 
