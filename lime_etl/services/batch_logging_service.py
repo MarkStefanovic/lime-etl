@@ -14,7 +14,7 @@ __all__ = (
 
 class AbstractBatchLoggingService(abc.ABC):
     @abc.abstractmethod
-    def create_job_logger(self) -> job_logging_service.AbstractJobLoggingService:
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> job_logging_service.AbstractJobLoggingService:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -38,10 +38,10 @@ class BatchLoggingService(AbstractBatchLoggingService):
         self._ts_adapter = ts_adapter
         super().__init__()
 
-    def create_job_logger(self) -> job_logging_service.JobLoggingService:
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> job_logging_service.JobLoggingService:
         return job_logging_service.JobLoggingService(
             batch_id=self._batch_id,
-            job_id=domain.UniqueId.generate(),
+            job_id=job_id,
             session=self._session,
             ts_adapter=self._ts_adapter,
         )
@@ -76,7 +76,7 @@ class ConsoleBatchLoggingService(AbstractBatchLoggingService):
         self.batch_id = batch_id
         super().__init__()
 
-    def create_job_logger(self) -> job_logging_service.AbstractJobLoggingService:
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> job_logging_service.AbstractJobLoggingService:
         return job_logging_service.ConsoleJobLoggingService()
 
     def log_error(self, message: str, /) -> None:

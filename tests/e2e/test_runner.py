@@ -4,7 +4,6 @@ import abc
 import dataclasses
 import typing
 
-import lime_uow as lu
 import pytest
 import sqlalchemy as sa
 from sqlalchemy import orm
@@ -28,13 +27,13 @@ class Message:
     message: str
 
 
-class AbstractMessageRepo(lu.Repository[Message], abc.ABC):
+class AbstractMessageRepo(le.Repository[Message], abc.ABC):
     @property
     def entity_type(self) -> typing.Type[Message]:
         return Message
 
 
-class MessageRepo(AbstractMessageRepo, lu.SqlAlchemyRepository[Message]):
+class MessageRepo(AbstractMessageRepo, le.SqlAlchemyRepository[Message]):
     def __init__(self, session: orm.Session, /):
         super().__init__(session)
 
@@ -48,25 +47,25 @@ def messages_session_factory(
     postgres_db: sa.engine.Engine,
 ) -> typing.Generator[orm.sessionmaker, None, None]:
     meta.drop_all(bind=postgres_db)
-    orm.mapper(Message, messages_table)
+    if not orm.base._is_mapped_class(Message):  # type: ignore
+        orm.mapper(Message, messages_table)
     meta.create_all(bind=postgres_db)
     yield orm.sessionmaker(bind=postgres_db)
-    orm.clear_mappers()
     meta.drop_all(bind=postgres_db)
 
 
-class MessageUOW(lu.UnitOfWork):
+class MessageUOW(le.UnitOfWork):
     def __init__(self, /, session_factory: orm.sessionmaker):
         super().__init__()
         self._session_factory = session_factory
 
-    def create_shared_resources(self) -> lu.SharedResources:
-        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
+    def create_shared_resources(self) -> le.SharedResources:
+        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
 
     def create_resources(
-        self, shared_resources: lu.SharedResources
-    ) -> typing.Set[lu.Resource[typing.Any]]:
-        return {MessageRepo(shared_resources.get(lu.SqlAlchemySession))}
+        self, shared_resources: le.SharedResources
+    ) -> typing.Set[le.Resource[typing.Any]]:
+        return {MessageRepo(shared_resources.get(le.SqlAlchemySession))}
 
     @property
     def message_repo(self) -> AbstractMessageRepo:
@@ -76,22 +75,20 @@ class MessageUOW(lu.UnitOfWork):
 class MessageJob(le.JobSpec[MessageUOW]):
     def __init__(
         self,
-        uow: MessageUOW,
         messages: typing.Iterable[Message],
         dependencies: typing.Iterable[str],
         job_name: str,
     ):
-        self._uow = uow
         self._messages = list(messages)
         self._dependencies = tuple(le.JobName(n) for n in dependencies)
         self._job_name = le.JobName(job_name)
 
     def run(
         self,
-        uow: lu.UnitOfWork,
+        uow: MessageUOW,
         logger: le.AbstractJobLoggingService,
     ) -> le.JobStatus:
-        with self._uow as uow:
+        with uow:
             uow.message_repo.add_all(self._messages)
             uow.save()
         return le.JobStatus.success()
@@ -128,10 +125,10 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def test(
         self,
-        uow: lu.UnitOfWork,
+        uow: MessageUOW,
         logger: le.AbstractJobLoggingService,
     ) -> typing.List[le.SimpleJobTestResult]:
-        with self._uow as uow:
+        with uow:
             result = uow.message_repo.all()
             missing_messages = [msg for msg in self._messages if msg not in result]
             test_name = le.TestName("Messages saved")
@@ -154,26 +151,16 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
 
 class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
-    def __init__(
-        self,
-        batch_name: le.BatchName,
-        admin_engine_uri: le.DbUri,
-        session_factory: orm.sessionmaker,
-    ):
-        self._batch_name = batch_name
-        self._admin_engine_uri = admin_engine_uri
+    def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
-
-        super().__init__()
 
     @property
     def batch_name(self) -> le.BatchName:
-        return self._batch_name
+        return le.BatchName("test_batch")
 
     def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job",
                 dependencies=[],
                 messages=[
@@ -182,7 +169,6 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
                 ],
             ),
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job2",
                 dependencies=["hello_world_job"],
                 messages=[
@@ -197,24 +183,16 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
 
 
 class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
-    def __init__(
-        self,
-        batch_name: le.BatchName,
-        admin_engine_uri: le.DbUri,
-        session_factory: orm.sessionmaker,
-    ):
-        self._batch_name = batch_name
-        self._admin_engine_uri = admin_engine_uri
+    def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
     @property
     def batch_name(self) -> le.BatchName:
-        return self._batch_name
+        return le.BatchName("test_batch")
 
     def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job",
                 dependencies=[],
                 messages=[
@@ -223,7 +201,6 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
                 ],
             ),
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job2",
                 dependencies=["hello_world_job3"],
                 messages=[
@@ -238,24 +215,16 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
 
 
 class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
-    def __init__(
-        self,
-        batch_name: le.BatchName,
-        admin_engine_uri: le.DbUri,
-        session_factory: orm.sessionmaker,
-    ):
-        self._batch_name = batch_name
-        self._admin_engine_uri = admin_engine_uri
+    def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
     @property
     def batch_name(self) -> le.BatchName:
-        return self._batch_name
+        return le.BatchName("test_batch")
 
     def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job2",
                 dependencies=["hello_world_job"],
                 messages=[
@@ -264,7 +233,6 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
                 ],
             ),
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job",
                 dependencies=[],
                 messages=[
@@ -274,33 +242,24 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_shared_resource(self) -> lu.SharedResources:
-        return lu.SharedResources(lu.SqlAlchemySession(self._session_factory))
+    def create_shared_resource(self) -> le.SharedResources:
+        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
 
     def create_uow(self) -> MessageUOW:
         return MessageUOW(self._session_factory)
 
 
 class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
-    def __init__(
-        self,
-        *,
-        batch_name: le.BatchName,
-        admin_engine_uri: le.DbUri,
-        session_factory: orm.sessionmaker,
-    ):
-        self._batch_name = batch_name
-        self._admin_engine_uri = admin_engine_uri
+    def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
     @property
     def batch_name(self) -> le.BatchName:
-        return self._batch_name
+        return le.BatchName("test_batch")
 
     def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job",
                 dependencies=[],
                 messages=[
@@ -309,7 +268,6 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
                 ],
             ),
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job",
                 dependencies=[],
                 messages=[
@@ -339,7 +297,6 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
     def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job",
                 dependencies=[],
                 messages=[
@@ -348,7 +305,6 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
                 ],
             ),
             MessageJob(
-                uow=self.uow,
                 job_name="hello_world_job2",
                 dependencies=["hello_world_job"],
                 messages=[
@@ -361,7 +317,8 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
     def create_uow(self) -> MessageUOW:
         engine = sa.create_engine(self._db_uri.value)
         meta.create_all(bind=engine)
-        orm.mapper(Message, messages_table)
+        if not orm.base._is_mapped_class(Message):  # type: ignore
+            orm.mapper(Message, messages_table)
         session_factory = orm.sessionmaker(bind=engine)
         return MessageUOW(session_factory)
 
@@ -389,11 +346,7 @@ def test_run_with_default_parameters_happy_path(
     postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    batch = MessageBatchHappyPath(
-        batch_name=le.BatchName("test_batch"),
-        admin_engine_uri=le.DbUri(postgres_db_uri),
-        session_factory=messages_session_factory,
-    )
+    batch = MessageBatchHappyPath(session_factory=messages_session_factory)
     actual = le.run_batch(
         batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None
     )
@@ -464,9 +417,6 @@ def test_run_with_default_parameters_happy_path(
     with postgres_db.begin() as con:
         result = con.execute(sa.text(sql)).fetchall()
 
-    for row in result:
-        print(row)
-
     assert (
         len(result) == 1
     ), f"{len(result)} batches were added.  There should only be 1 batch entry."
@@ -519,11 +469,7 @@ def test_run_with_unresolved_dependencies(
     postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    batch = MessageBatchWithMissingDependencies(
-        batch_name=le.BatchName("test_batch"),
-        admin_engine_uri=le.DbUri(postgres_db_uri),
-        session_factory=messages_session_factory,
-    )
+    batch = MessageBatchWithMissingDependencies(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
         le.run_batch(batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None)
     assert (
@@ -577,11 +523,7 @@ def test_run_with_dependencies_out_of_order(
     postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    batch = MessageBatchWithDependenciesOutOfOrder(
-        batch_name=le.BatchName("test_batch"),
-        admin_engine_uri=le.DbUri(postgres_db_uri),
-        session_factory=messages_session_factory,
-    )
+    batch = MessageBatchWithDependenciesOutOfOrder(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
         le.run_batch(batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None)
     assert (
@@ -617,11 +559,7 @@ def test_run_with_duplicate_job_names(
     postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
-    batch = MessageBatchWithDuplicateJobNames(
-        batch_name=le.BatchName("test_batch"),
-        admin_engine_uri=le.DbUri(postgres_db_uri),
-        session_factory=messages_session_factory,
-    )
+    batch = MessageBatchWithDuplicateJobNames(messages_session_factory)
     with pytest.raises(le.exceptions.DuplicateJobNamesError) as e:
         le.run_batch(batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None)
     assert (

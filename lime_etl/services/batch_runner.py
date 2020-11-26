@@ -163,7 +163,7 @@ def run_batch_or_fail(
                 time_to_run_again = True
 
             if time_to_run_again:
-                job_logger = logger.create_job_logger()
+                job_logger = logger.create_job_logger(job_id)
                 result = domain.JobResult.running(
                     job_status_id=job_id,
                     batch_id=batch.batch_id,
