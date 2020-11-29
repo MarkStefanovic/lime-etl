@@ -3,6 +3,7 @@ import datetime
 import typing
 
 import lime_uow as lu
+from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import orm
 
 from lime_etl.adapters import timestamp_adapter
@@ -26,7 +27,7 @@ class JobLogRepository(
 
 class SqlAlchemyJobLogRepository(
     JobLogRepository,
-    lu.SqlAlchemyRepository[domain.JobLogEntryDTO],
+    lsa.SqlAlchemyRepository[domain.JobLogEntryDTO],
 ):
     def __init__(
         self,

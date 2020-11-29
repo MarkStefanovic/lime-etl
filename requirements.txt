@@ -1,7 +1,7 @@
 # app
 sqlalchemy
 psycopg2-binary
-lime-uow==0.1.42
+lime-uow==0.1.43
 
 # dev
 pytest

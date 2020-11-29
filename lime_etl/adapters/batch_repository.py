@@ -3,6 +3,7 @@ import datetime
 import typing
 
 import lime_uow as lu
+from lime_uow import sqlalchemy_resources as lsa
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,7 @@ class BatchRepository(lu.Repository[domain.BatchStatusDTO], abc.ABC):
 
 
 class SqlAlchemyBatchRepository(
-    BatchRepository, lu.SqlAlchemyRepository[domain.BatchStatusDTO]
+    BatchRepository, lsa.SqlAlchemyRepository[domain.BatchStatusDTO]
 ):
     def __init__(
         self,

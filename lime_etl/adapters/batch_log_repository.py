@@ -5,6 +5,7 @@ import datetime
 import typing
 
 import lime_uow as lu
+from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import orm
 
 from lime_etl.adapters import timestamp_adapter
@@ -32,7 +33,7 @@ class BatchLogRepository(
 
 class SqlAlchemyBatchLogRepository(
     BatchLogRepository,
-    lu.SqlAlchemyRepository[domain.BatchLogEntryDTO],
+    lsa.SqlAlchemyRepository[domain.BatchLogEntryDTO],
 ):
     def __init__(
         self,

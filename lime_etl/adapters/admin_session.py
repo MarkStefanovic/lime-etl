@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import typing
 
-import lime_uow as lu
+from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import orm
 
 __all__ = ("SqlAlchemyAdminSession",)
 
 
-class SqlAlchemyAdminSession(lu.SqlAlchemySession):
+class SqlAlchemyAdminSession(lsa.SqlAlchemySession):
     def __init__(self, session_factory: orm.sessionmaker):
         super().__init__(session_factory)
 

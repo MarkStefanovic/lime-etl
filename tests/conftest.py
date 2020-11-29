@@ -208,8 +208,8 @@ class DummyAdminUnitOfWork(admin_unit_of_work.AdminUnitOfWork):
             static_timestamp_adapter(datetime.datetime(2020, 1, 1)),
         }
 
-    def create_shared_resources(self) -> lu.SharedResources:
-        return lu.PlaceholderSharedResources()
+    def create_shared_resources(self) -> typing.List[lu.Resource[typing.Any]]:
+        return []
 
     @property
     def job_repo(self) -> job_repository.JobRepository:

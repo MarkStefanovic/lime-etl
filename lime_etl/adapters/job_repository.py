@@ -2,6 +2,7 @@ import abc
 import typing
 
 import lime_uow as lu
+from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import desc, orm
 
 from lime_etl.adapters import timestamp_adapter
@@ -29,7 +30,7 @@ class JobRepository(lu.Repository[domain.JobResultDTO], abc.ABC):
 
 
 class SqlAlchemyJobRepository(
-    JobRepository, lu.SqlAlchemyRepository[domain.JobResultDTO]
+    JobRepository, lsa.SqlAlchemyRepository[domain.JobResultDTO]
 ):
     def __init__(
         self,

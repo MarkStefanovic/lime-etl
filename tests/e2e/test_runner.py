@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 import lime_etl as le
+from lime_uow import sqlalchemy_resources as lsa
 from tests import test_utils
 
 meta = sa.MetaData()
@@ -33,7 +34,7 @@ class AbstractMessageRepo(le.Repository[Message], abc.ABC):
         return Message
 
 
-class MessageRepo(AbstractMessageRepo, le.SqlAlchemyRepository[Message]):
+class MessageRepo(AbstractMessageRepo, lsa.SqlAlchemyRepository[Message]):
     def __init__(self, session: orm.Session, /):
         super().__init__(session)
 
@@ -59,13 +60,13 @@ class MessageUOW(le.UnitOfWork):
         super().__init__()
         self._session_factory = session_factory
 
-    def create_shared_resources(self) -> le.SharedResources:
-        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+    def create_shared_resources(self) -> typing.List[le.Resource[typing.Any]]:
+        return [lsa.SqlAlchemySession(self._session_factory)]
 
     def create_resources(
         self, shared_resources: le.SharedResources
     ) -> typing.Set[le.Resource[typing.Any]]:
-        return {MessageRepo(shared_resources.get(le.SqlAlchemySession))}
+        return {MessageRepo(shared_resources.get(lsa.SqlAlchemySession))}
 
     @property
     def message_repo(self) -> AbstractMessageRepo:
@@ -243,7 +244,7 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
         ]
 
     def create_shared_resource(self) -> le.SharedResources:
-        return le.SharedResources(le.SqlAlchemySession(self._session_factory))
+        return le.SharedResources(lsa.SqlAlchemySession(self._session_factory))
 
     def create_uow(self) -> MessageUOW:
         return MessageUOW(self._session_factory)
