@@ -394,7 +394,7 @@ def run_jobs_with_tests(
         job_name=job.job_name,
         test_results=full_test_results,
         execution_millis=execution_millis,
-        status=domain.JobStatus.success(),
+        status=result,
         ts=start_time,
     )
 
