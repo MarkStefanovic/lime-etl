@@ -156,7 +156,7 @@ def run_batch_or_fail(
                     current_ts.value - last_ts.value
                 ).total_seconds()
                 time_to_run_again = (
-                    seconds_since_last_refresh < job.min_seconds_between_refreshes.value
+                    seconds_since_last_refresh > job.min_seconds_between_refreshes.value
                 )
             else:
                 seconds_since_last_refresh = 0
