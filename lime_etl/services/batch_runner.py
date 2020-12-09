@@ -40,7 +40,7 @@ def run_batches_in_parallel(
 
 
 def run_batch(
-    batch: batch_spec.BatchSpec[lu.UnitOfWork],
+    batch: batch_spec.BatchSpec[UoW],
     admin_engine_uri: str,
     admin_schema: typing.Optional[str] = "etl",
 ) -> domain.BatchStatus:
@@ -75,17 +75,20 @@ def run_batch(
             uow.batch_repo.add(new_batch.to_dto())
             uow.save()
 
-        dep_results = check_dependencies(batch.jobs)
-        if dep_results:
-            raise domain.exceptions.DependencyErrors(dep_results)
+
 
         logger.log_info(f"Staring batch [{batch.batch_name.value}]...")
-        result = run_batch_or_fail(
-            admin_uow=admin_uow,
-            batch=batch,
-            logger=logger,
-            start_time=start_time,
-        )
+        batch_uow = batch.create_uow()
+        try:
+            result = run_batch_or_fail(
+                admin_uow=admin_uow,
+                batch=batch,
+                batch_uow=batch_uow,
+                logger=logger,
+                start_time=start_time,
+            )
+        finally:
+            batch_uow.close()
 
         with admin_uow as uow:
             uow.batch_repo.update(result.to_dto())
@@ -113,20 +116,22 @@ def run_batch(
         raise
     finally:
         admin_uow.close()
-        batch.uow.close()
 
 
 def run_batch_or_fail(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
-    batch: batch_spec.BatchSpec[lu.UnitOfWork],
+    batch: batch_spec.BatchSpec[UoW],
+    batch_uow: UoW,
     logger: batch_logging_service.AbstractBatchLoggingService,
     start_time: domain.Timestamp,
 ) -> domain.BatchStatus:
-    check_for_duplicate_job_names(batch.jobs)
+    jobs = batch.create_jobs(batch_uow)
+    check_dependencies(jobs)
+    check_for_duplicate_job_names(jobs)
 
     job_results: typing.List[domain.JobResult] = []
-    for ix, job in enumerate(batch.jobs):
+    for ix, job in enumerate(jobs):
         job_id = domain.UniqueId.generate()
 
         if job.dependencies and all(
@@ -179,6 +184,7 @@ def run_batch_or_fail(
                     result = run_job(
                         admin_uow=admin_uow,
                         batch=batch,
+                        batch_uow=batch_uow,
                         job=job,
                         logger=job_logger,
                         job_id=job_id,
@@ -236,6 +242,7 @@ def run_job(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch: batch_spec.BatchSpec[UoW],
+    batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -243,6 +250,7 @@ def run_job(
     result: domain.JobResult = run_job_pre_handlers(
         admin_uow=admin_uow,
         batch=batch,
+        batch_uow=batch_uow,
         job=job,
         job_id=job_id,
         logger=logger,
@@ -254,6 +262,7 @@ def run_job(
             return run_job(
                 admin_uow=admin_uow,
                 batch=batch,
+                batch_uow=batch_uow,
                 job=new_job,
                 job_id=job_id,
                 logger=logger,
@@ -266,6 +275,7 @@ def run_job(
             return run_job(
                 admin_uow=admin_uow,
                 batch=batch,
+                batch_uow=batch_uow,
                 job=new_job,
                 job_id=job_id,
                 logger=logger,
@@ -280,6 +290,7 @@ def run_job_pre_handlers(
     *,
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch: batch_spec.BatchSpec[UoW],
+    batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -317,6 +328,7 @@ def run_job_pre_handlers(
     else:
         result = run_jobs_with_tests(
             batch=batch,
+            batch_uow=batch_uow,
             job=job,
             job_id=job_id,
             logger=logger,
@@ -329,6 +341,7 @@ def run_job_pre_handlers(
 def run_jobs_with_tests(
     *,
     batch: batch_spec.BatchSpec[UoW],
+    batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
     logger: job_logging_service.AbstractJobLoggingService,
@@ -336,6 +349,7 @@ def run_jobs_with_tests(
 ) -> domain.JobResult:
     result, execution_millis = run_job_with_retry(
         batch=batch,
+        batch_uow=batch_uow,
         job=job,
         logger=logger,
         max_retries=job.max_retries.value,
@@ -346,7 +360,7 @@ def run_jobs_with_tests(
         logger.log_info(f"[{job.job_name.value}] finished successfully.")
         logger.log_info(f"Running the tests for [{job.job_name.value}]...")
         test_start_time = datetime.datetime.now()
-        test_results = job.test(batch.uow, logger)  # type: ignore
+        test_results = job.test(batch_uow, logger)
         test_execution_millis = int(
             (datetime.datetime.now() - test_start_time).total_seconds() * 1000
         )
@@ -402,6 +416,7 @@ def run_jobs_with_tests(
 def run_job_with_retry(
     *,
     batch: batch_spec.BatchSpec[UoW],
+    batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     logger: job_logging_service.AbstractJobLoggingService,
     max_retries: int,
@@ -410,7 +425,7 @@ def run_job_with_retry(
 ) -> typing.Tuple[domain.JobStatus, domain.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(batch.uow, logger) or domain.JobStatus.success()  # type: ignore
+        result = job.run(batch_uow, logger) or domain.JobStatus.success()
         end_time = batch.ts_adapter.now()
         execution_millis = domain.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time
@@ -422,6 +437,7 @@ def run_job_with_retry(
             logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
             return run_job_with_retry(
                 batch=batch,
+                batch_uow=batch_uow,
                 job=job,
                 logger=logger,
                 max_retries=max_retries,
@@ -436,7 +452,7 @@ def run_job_with_retry(
 
 
 def check_for_duplicate_job_names(
-    jobs: typing.Collection[job_spec.JobSpec[lu.UnitOfWork]], /
+    jobs: typing.Collection[job_spec.JobSpec[UoW]], /
 ) -> None:
     job_names = [job.job_name for job in jobs]
     duplicates = {
@@ -447,8 +463,8 @@ def check_for_duplicate_job_names(
 
 
 def check_dependencies(
-    jobs: typing.List[job_spec.JobSpec[lu.UnitOfWork]], /
-) -> typing.Set[domain.JobDependencyErrors]:
+    jobs: typing.List[job_spec.JobSpec[UoW]], /
+) -> None:
     job_names = {job.job_name for job in jobs}
     unresolved_dependencies_by_table = {
         job.job_name: set(dep for dep in job.dependencies if dep not in job_names)
@@ -472,7 +488,7 @@ def check_dependencies(
         if job_deps_out_of_order:
             jobs_out_of_order_by_table[job.job_name] = set(job_deps_out_of_order)
 
-    return {
+    dependency_errors = {
         domain.JobDependencyErrors(
             job_name=job_name,
             missing_dependencies=frozenset(
@@ -489,3 +505,5 @@ def check_dependencies(
             )
         )
     }
+    if dependency_errors:
+        raise domain.exceptions.DependencyErrors(dependency_errors)

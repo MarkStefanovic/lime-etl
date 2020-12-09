@@ -25,7 +25,9 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
     def batch_name(self) -> domain.BatchName:
         return domain.BatchName("admin")
 
-    def create_jobs(self) -> typing.List[job_spec.JobSpec[admin_unit_of_work.AdminUnitOfWork]]:
+    def create_jobs(
+        self, uow: admin_unit_of_work.AdminUnitOfWork
+    ) -> typing.List[job_spec.JobSpec[admin_unit_of_work.AdminUnitOfWork]]:
         return [
             admin.delete_old_logs.DeleteOldLogs(
                 days_logs_to_keep=self._days_logs_to_keep,
@@ -39,5 +41,5 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         adapters.admin_orm.start_mappers()
         admin_session_factory = orm.sessionmaker(bind=admin_engine)
         return admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
-                session_factory=admin_session_factory, ts_adapter=self.ts_adapter
-            )
+            session_factory=admin_session_factory, ts_adapter=self.ts_adapter
+        )
