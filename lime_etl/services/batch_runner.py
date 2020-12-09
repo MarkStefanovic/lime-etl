@@ -27,7 +27,7 @@ UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, contravariant=True)
 
 
 def run_batches_in_parallel(
-    batches: typing.Iterable[batch_spec.BatchSpec[lu.UnitOfWork]],
+    batches: typing.Iterable[batch_spec.BatchSpec[UoW]],
     admin_engine_uri: str,
     admin_schema: typing.Optional[str] = "etl",
     max_processes: int = 3,
