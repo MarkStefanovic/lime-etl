@@ -9,7 +9,7 @@ from lime_etl.services import (
     job_spec,
 )
 
-UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, covariant=True)
+UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork)
 
 __all__ = ("BatchSpec",)
 
@@ -25,7 +25,7 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def create_jobs(self) -> typing.List[job_spec.JobSpec[UoW]]:
+    def create_jobs(self, uow: UoW) -> typing.List[job_spec.JobSpec[UoW]]:
         raise NotImplementedError
 
     @abc.abstractmethod

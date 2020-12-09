@@ -40,7 +40,7 @@ def run_batches_in_parallel(
 
 
 def run_batch(
-    batch: batch_spec.BatchSpec[lu.UnitOfWork],
+    batch: batch_spec.BatchSpec[UoW],
     admin_engine_uri: str,
     admin_schema: typing.Optional[str] = "etl",
 ) -> domain.BatchStatus:
@@ -126,7 +126,7 @@ def run_batch_or_fail(
     logger: batch_logging_service.AbstractBatchLoggingService,
     start_time: domain.Timestamp,
 ) -> domain.BatchStatus:
-    jobs = batch.create_jobs()
+    jobs = batch.create_jobs(batch_uow)
     check_dependencies(jobs)
     check_for_duplicate_job_names(jobs)
 

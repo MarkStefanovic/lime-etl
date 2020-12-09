@@ -159,7 +159,7 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -191,7 +191,7 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -223,7 +223,7 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
                 job_name="hello_world_job2",
@@ -258,7 +258,7 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -295,7 +295,7 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -604,7 +604,7 @@ def test_run_batches_in_parallel(
     results = le.run_batches_in_parallel(
         admin_engine_uri=postgres_db_uri,
         admin_schema=None,
-        batches=(admin_batch, message_batch),
+        batches=[admin_batch, message_batch],  # type: ignore
         max_processes=3,
         timeout=10,
     )
