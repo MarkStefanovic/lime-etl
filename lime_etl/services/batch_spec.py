@@ -32,10 +32,6 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
     def create_uow(self) -> UoW:
         raise NotImplementedError
 
-    @functools.cached_property
-    def jobs(self) -> typing.List[job_spec.JobSpec[UoW]]:
-        return self.create_jobs()
-
     @property
     def skip_tests(self) -> domain.Flag:
         return domain.Flag(False)
@@ -47,10 +43,6 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
     @property
     def ts_adapter(self) -> adapters.TimestampAdapter:
         return adapters.LocalTimestampAdapter()
-
-    @functools.cached_property
-    def uow(self) -> UoW:
-        return self.create_uow()
 
     def __repr__(self) -> str:
         return f"<BatchSpec: {self.__class__.__name__}>: {self.batch_name.value}"
