@@ -34,7 +34,7 @@ def run_batches_in_parallel(
     timeout: typing.Optional[int] = None,
 ) -> typing.List[domain.BatchStatus]:
     params = [(batch, admin_engine_uri, admin_schema) for batch in batches]
-    with multiprocessing.Pool(max_processes) as pool:
+    with multiprocessing.Pool(max_processes, maxtasksperchild=1) as pool:
         future = pool.starmap_async(run_batch, params)
         return future.get(timeout)
 
