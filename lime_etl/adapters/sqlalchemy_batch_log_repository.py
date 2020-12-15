@@ -1,36 +1,17 @@
-from __future__ import annotations
-
-import abc
 import datetime
 import typing
 
-import lime_uow as lu
 from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import orm
 
 from lime_etl import domain
 
-__all__ = (
-    "BatchLogRepository",
-    "SqlAlchemyBatchLogRepository",
-)
 
-
-class BatchLogRepository(
-    lu.Repository[domain.BatchLogEntryDTO],
-    abc.ABC,
-):
-    @abc.abstractmethod
-    def delete_old_entries(self, days_to_keep: domain.DaysToKeep) -> int:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_earliest_timestamp(self) -> typing.Optional[datetime.datetime]:
-        raise NotImplementedError
+__all__ = ("SqlAlchemyBatchLogRepository",)
 
 
 class SqlAlchemyBatchLogRepository(
-    BatchLogRepository,
+    domain.BatchLogRepository,
     lsa.SqlAlchemyRepository[domain.BatchLogEntryDTO],
 ):
     def __init__(
@@ -66,5 +47,5 @@ class SqlAlchemyBatchLogRepository(
             return earliest_entry.ts
 
     @classmethod
-    def interface(cls) -> typing.Type[BatchLogRepository]:
-        return BatchLogRepository
+    def interface(cls) -> typing.Type[domain.BatchLogRepository]:
+        return domain.BatchLogRepository

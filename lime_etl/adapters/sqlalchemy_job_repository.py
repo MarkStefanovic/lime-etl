@@ -1,35 +1,17 @@
-import abc
 import typing
 
-import lime_uow as lu
 from lime_uow import sqlalchemy_resources as lsa
-from sqlalchemy import desc, orm
+from sqlalchemy import orm
+from sqlalchemy.sql.expression import desc
 
 from lime_etl import domain
 
 
-__all__ = (
-    "JobRepository",
-    "SqlAlchemyJobRepository",
-)
-
-
-class JobRepository(lu.Repository[domain.JobResultDTO], abc.ABC):
-    @abc.abstractmethod
-    def get_latest(
-        self, job_name: domain.JobName, /
-    ) -> typing.Optional[domain.JobResultDTO]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_last_successful_ts(
-        self, job_name: domain.JobName, /
-    ) -> typing.Optional[domain.Timestamp]:
-        raise NotImplementedError
+__all__ = ("SqlAlchemyJobRepository",)
 
 
 class SqlAlchemyJobRepository(
-    JobRepository, lsa.SqlAlchemyRepository[domain.JobResultDTO]
+    domain.JobRepository, lsa.SqlAlchemyRepository[domain.JobResultDTO]
 ):
     def __init__(
         self,
@@ -70,5 +52,5 @@ class SqlAlchemyJobRepository(
             return domain.Timestamp(jr.ts)
 
     @classmethod
-    def interface(cls) -> typing.Type[JobRepository]:
-        return JobRepository
+    def interface(cls) -> typing.Type[domain.JobRepository]:
+        return domain.JobRepository

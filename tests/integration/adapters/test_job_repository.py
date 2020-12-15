@@ -2,36 +2,35 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from lime_etl.adapters import job_repository
-from lime_etl.domain import job_result, job_status, job_test_result, value_objects
+import lime_etl as le
 from tests import conftest
 
 
 def test_sqlalchemy_job_repository_add(session: Session) -> None:
-    batch_id = value_objects.UniqueId("a" * 32)
-    job_id = value_objects.UniqueId("b" * 32)
-    test_result = job_test_result.JobTestResult(
+    batch_id = le.UniqueId("a" * 32)
+    job_id = le.UniqueId("b" * 32)
+    test_result = le.JobTestResult(
         id=batch_id,
         job_id=job_id,
-        test_name=value_objects.TestName("dummy_test"),
-        test_success_or_failure=value_objects.Result.success(),
-        execution_millis=value_objects.ExecutionMillis(10),
-        execution_success_or_failure=value_objects.Result.success(),
-        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
+        test_name=le.TestName("dummy_test"),
+        test_success_or_failure=le.Result.success(),
+        execution_millis=le.ExecutionMillis(10),
+        execution_success_or_failure=le.Result.success(),
+        ts=le.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
     )
-    new_job = job_result.JobResult(
+    new_job = le.JobResult(
         id=job_id,
         batch_id=batch_id,
-        job_name=value_objects.JobName("test_table"),
-        status=job_status.JobStatus.success(),
-        execution_millis=value_objects.ExecutionMillis(10),
+        job_name=le.JobName("test_table"),
+        status=le.JobStatus.success(),
+        execution_millis=le.ExecutionMillis(10),
         test_results=frozenset([test_result]),
-        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
+        ts=le.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
     )
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
-    repo = job_repository.SqlAlchemyJobRepository(
+    repo = le.SqlAlchemyJobRepository(
         session=session,
         ts_adapter=ts_adapter,
     )
@@ -56,33 +55,33 @@ def test_sqlalchemy_job_repository_add(session: Session) -> None:
 def test_sqlalchemy_job_repository_update(
     session: Session,
 ) -> None:
-    job_id = value_objects.UniqueId("a" * 32)
-    batch_id = value_objects.UniqueId("b" * 32)
+    job_id = le.UniqueId("a" * 32)
+    batch_id = le.UniqueId("b" * 32)
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
-    repo = job_repository.SqlAlchemyJobRepository(
+    repo = le.SqlAlchemyJobRepository(
         session=session,
         ts_adapter=ts_adapter,
     )
-    new_job = job_result.JobResult(
+    new_job = le.JobResult(
         id=job_id,
         batch_id=batch_id,
-        job_name=value_objects.JobName("test_job"),
+        job_name=le.JobName("test_job"),
         execution_millis=None,
-        status=job_status.JobStatus.in_progress(),
+        status=le.JobStatus.in_progress(),
         test_results=frozenset(),
-        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
+        ts=le.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     repo.add(new_job.to_dto())
-    updated_job = job_result.JobResult(
+    updated_job = le.JobResult(
         id=job_id,
         batch_id=batch_id,
-        job_name=value_objects.JobName("test_job"),
-        execution_millis=value_objects.ExecutionMillis(10),
-        status=job_status.JobStatus.success(),
+        job_name=le.JobName("test_job"),
+        execution_millis=le.ExecutionMillis(10),
+        status=le.JobStatus.success(),
         test_results=frozenset(),
-        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
+        ts=le.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     repo.update(updated_job.to_dto())
     session.commit()
@@ -121,11 +120,11 @@ def test_job_repository_get_latest(session: Session) -> None:
     )
     session.commit()
     ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
-    repo = job_repository.SqlAlchemyJobRepository(
+    repo = le.SqlAlchemyJobRepository(
         session=session, ts_adapter=ts_adapter
     )
-    result = repo.get_latest(value_objects.JobName("test_table"))
-    expected = job_result.JobResultDTO(
+    result = repo.get_latest(le.JobName("test_table"))
+    expected = le.JobResultDTO(
         id="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         batch_id="cccccccccccccccccccccccccccccccc",
         job_name="test_table",
@@ -153,9 +152,9 @@ def test_job_repository_get_last_successful_ts(session: Session) -> None:
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2020, 1, 1, 5, 1, 1)
     )
-    repo = job_repository.SqlAlchemyJobRepository(
+    repo = le.SqlAlchemyJobRepository(
         session=session, ts_adapter=ts_adapter
     )
-    actual = repo.get_last_successful_ts(value_objects.JobName("test_job"))
-    expected = value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1))
+    actual = repo.get_last_successful_ts(le.JobName("test_job"))
+    expected = le.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1))
     assert actual == expected

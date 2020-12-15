@@ -22,12 +22,12 @@ class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def batch_log_repo(self) -> adapters.BatchLogRepository:
+    def batch_log_repo(self) -> domain.BatchLogRepository:
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def job_repo(self) -> adapters.JobRepository:
+    def job_repo(self) -> domain.JobRepository:
         raise NotImplementedError
 
     @property
@@ -57,15 +57,15 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
         return self.get(adapters.BatchRepository)  # type: ignore  # see mypy issue 5374
 
     @property
-    def batch_log_repo(self) -> adapters.BatchLogRepository:
-        return self.get(adapters.BatchLogRepository)  # type: ignore  # see mypy issue 5374
+    def batch_log_repo(self) -> domain.BatchLogRepository:
+        return self.get(domain.BatchLogRepository)  # type: ignore  # see mypy issue 5374
 
     def create_shared_resources(self) -> typing.List[lu.Resource[typing.Any]]:
         return [adapters.SqlAlchemyAdminSession(self._session_factory)]
 
     @property
-    def job_repo(self) -> adapters.JobRepository:
-        return self.get(adapters.JobRepository)  # type: ignore  # see mypy issue 5374
+    def job_repo(self) -> domain.JobRepository:
+        return self.get(domain.JobRepository)  # type: ignore  # see mypy issue 5374
 
     @property
     def job_log_repo(self) -> adapters.JobLogRepository:
@@ -83,7 +83,7 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
             adapters.SqlAlchemyBatchRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
-            adapters.SqlAlchemyBatchLogRepository(
+            adapters.sqlalchemy_batch_log_repository.SqlAlchemyBatchLogRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
             adapters.SqlAlchemyJobRepository(
