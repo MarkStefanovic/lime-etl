@@ -1,32 +1,17 @@
-import abc
 import datetime
 import typing
 
-import lime_uow as lu
 import sqlalchemy as sa
 from lime_uow import sqlalchemy_resources as lsa
-from sqlalchemy.orm import Session
+from sqlalchemy.orm.session import Session
 
 from lime_etl import domain
 
-__all__ = (
-    "BatchRepository",
-    "SqlAlchemyBatchRepository",
-)
-
-
-class BatchRepository(lu.Repository[domain.BatchStatusDTO], abc.ABC):
-    @abc.abstractmethod
-    def delete_old_entries(self, days_to_keep: domain.DaysToKeep, /) -> int:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_latest(self) -> typing.Optional[domain.BatchStatusDTO]:
-        raise NotImplementedError
+__all__ = ("SqlAlchemyBatchRepository",)
 
 
 class SqlAlchemyBatchRepository(
-    BatchRepository, lsa.SqlAlchemyRepository[domain.BatchStatusDTO]
+    domain.BatchRepository, lsa.SqlAlchemyRepository[domain.BatchStatusDTO]
 ):
     def __init__(
         self,
@@ -64,5 +49,5 @@ class SqlAlchemyBatchRepository(
         )
 
     @classmethod
-    def interface(cls) -> typing.Type[BatchRepository]:
-        return BatchRepository
+    def interface(cls) -> typing.Type[domain.BatchRepository]:
+        return domain.BatchRepository

@@ -1,6 +1,7 @@
 from lime_etl.domain import exceptions
 from lime_etl.domain.batch_log_repository import *
 from lime_etl.domain.batch_logger import *
+from lime_etl.domain.batch_repository import *
 from lime_etl.domain.value_objects import *
 from lime_etl.domain.batch_log_entry import *
 from lime_etl.domain.batch_status import *

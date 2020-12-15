@@ -2,51 +2,45 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from lime_etl.adapters import batch_repository
-from lime_etl.domain import (
-    batch_status,
-    job_result,
-    job_status,
-    job_test_result,
-    value_objects,
-)
+import adapters.sqlalchemy_batch_repository
+import lime_etl as le
 from tests import conftest
 
 
 def test_sqlalchemy_batch_repository_add(session: Session) -> None:
-    batch_id = value_objects.UniqueId("f00052d73ca54f649190d80aa26ea779")
-    job_id = value_objects.UniqueId.generate()
-    test_result = job_test_result.JobTestResult(
+    batch_id = le.UniqueId("f00052d73ca54f649190d80aa26ea779")
+    job_id = le.UniqueId.generate()
+    test_result = le.JobTestResult(
         id=batch_id,
         job_id=job_id,
-        test_name=value_objects.TestName("dummy_test"),
-        test_success_or_failure=value_objects.Result.success(),
-        execution_millis=value_objects.ExecutionMillis(10),
-        execution_success_or_failure=value_objects.Result.success(),
-        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
+        test_name=le.TestName("dummy_test"),
+        test_success_or_failure=le.Result.success(),
+        execution_millis=le.ExecutionMillis(10),
+        execution_success_or_failure=le.Result.success(),
+        ts=le.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 2)),
     )
-    job = job_result.JobResult(
+    job = le.JobResult(
         id=job_id,
         batch_id=batch_id,
-        job_name=value_objects.JobName("test_table"),
-        status=job_status.JobStatus.success(),
-        execution_millis=value_objects.ExecutionMillis(10),
+        job_name=le.JobName("test_table"),
+        status=le.JobStatus.success(),
+        execution_millis=le.ExecutionMillis(10),
         test_results=frozenset([test_result]),
-        ts=value_objects.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
+        ts=le.Timestamp(datetime.datetime(2010, 1, 1, 1, 1, 1)),
     )
-    new_batch = batch_status.BatchStatus(
+    new_batch = le.BatchStatus(
         id=batch_id,
-        name=value_objects.BatchName("test_batch"),
-        execution_millis=value_objects.ExecutionMillis(10),
+        name=le.BatchName("test_batch"),
+        execution_millis=le.ExecutionMillis(10),
         job_results=frozenset([job]),
-        execution_success_or_failure=value_objects.Result.success(),
-        running=value_objects.Flag(False),
-        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
+        execution_success_or_failure=le.Result.success(),
+        running=le.Flag(False),
+        ts=le.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
-    repo = batch_repository.SqlAlchemyBatchRepository(
+    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
     repo.add(new_batch.to_dto())
@@ -69,32 +63,32 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
 def test_sqlalchemy_batch_repository_update(
     session: Session,
 ) -> None:
-    batch_id = value_objects.UniqueId("f00052d73ca54f649190d80aa26ea779")
+    batch_id = le.UniqueId("f00052d73ca54f649190d80aa26ea779")
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
 
-    repo = batch_repository.SqlAlchemyBatchRepository(
+    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
-    new_batch = batch_status.BatchStatus(
+    new_batch = le.BatchStatus(
         id=batch_id,
-        name=value_objects.BatchName("test_batch"),
+        name=le.BatchName("test_batch"),
         execution_millis=None,
         job_results=frozenset([]),
         execution_success_or_failure=None,
-        running=value_objects.Flag(True),
-        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
+        running=le.Flag(True),
+        ts=le.Timestamp(datetime.datetime(2001, 1, 2, 3, 4, 5)),
     )
     repo.add(new_batch.to_dto())
-    new_batch2 = batch_status.BatchStatus(
+    new_batch2 = le.BatchStatus(
         id=batch_id,
-        name=value_objects.BatchName("test_batch"),
-        execution_millis=value_objects.ExecutionMillis(10),
+        name=le.BatchName("test_batch"),
+        execution_millis=le.ExecutionMillis(10),
         job_results=frozenset([]),
-        execution_success_or_failure=value_objects.Result.success(),
-        running=value_objects.Flag(False),
-        ts=value_objects.Timestamp(datetime.datetime(2001, 1, 2, 3, 5, 1)),
+        execution_success_or_failure=le.Result.success(),
+        running=le.Flag(False),
+        ts=le.Timestamp(datetime.datetime(2001, 1, 2, 3, 5, 1)),
     )
     repo.update(new_batch2.to_dto())
     session.commit()
@@ -136,11 +130,11 @@ def test_sqlalchemy_batch_repository_delete_old_entries(session: Session) -> Non
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2020, 1, 1, 1, 1, 1)
     )
-    repo = batch_repository.SqlAlchemyBatchRepository(
+    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session,
         ts_adapter=ts_adapter,
     )
-    rows_deleted = repo.delete_old_entries(value_objects.DaysToKeep(10))
+    rows_deleted = repo.delete_old_entries(le.DaysToKeep(10))
     session.commit()
     assert rows_deleted == 1
 
@@ -205,18 +199,18 @@ def test_sqlalchemy_batch_repository_get_latest(session: Session) -> None:
     )
     session.commit()
     ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
-    repo = batch_repository.SqlAlchemyBatchRepository(
+    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
     result = repo.get_latest()
-    expected = batch_status.BatchStatusDTO(
+    expected = le.BatchStatusDTO(
         id="b2396d94bd55a455baf80a26209349d6",
         name="test_batch",
         execution_error_message=None,
         execution_error_occurred=False,
         execution_millis=10,
         job_results=[
-            job_result.JobResultDTO(
+            le.JobResultDTO(
                 id="j3396d94bd55a455baf80a26209349d6",
                 batch_id="b2396d94bd55a455baf80a26209349d6",
                 job_name="test_table",
