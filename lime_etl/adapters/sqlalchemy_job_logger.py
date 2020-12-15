@@ -3,14 +3,15 @@ from sqlalchemy import orm
 from lime_etl import domain
 
 __all__ = (
-    "SqlAlchemyJobLoggingService",
-    "ConsoleJobLoggingService",
+    "SqlAlchemyJobLogger",
+    "ConsoleJobLogger",
 )
 
 
-class SqlAlchemyJobLoggingService(domain.JobLoggingService):
+class SqlAlchemyJobLogger(domain.JobLogger):
     def __init__(
         self,
+        *,
         batch_id: domain.UniqueId,
         job_id: domain.UniqueId,
         session: orm.Session,
@@ -50,7 +51,7 @@ class SqlAlchemyJobLoggingService(domain.JobLoggingService):
         )
 
 
-class ConsoleJobLoggingService(domain.JobLoggingService):
+class ConsoleJobLogger(domain.JobLogger):
     def __init__(self) -> None:
         super().__init__()
 

@@ -38,7 +38,7 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
     def run(
         self,
         uow: UoW,
-        logger: domain.JobLoggingService,
+        logger: domain.JobLogger,
     ) -> domain.JobStatus:
         raise NotImplementedError
 
@@ -46,7 +46,7 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
     def test(
         self,
         uow: UoW,
-        logger: domain.JobLoggingService,
+        logger: domain.JobLogger,
     ) -> typing.Collection[domain.SimpleJobTestResult]:
         raise NotImplementedError
 

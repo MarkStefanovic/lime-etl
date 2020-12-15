@@ -1,33 +1,18 @@
-import abc
-
 from sqlalchemy import orm
 
-from lime_etl import domain, adapters
+from lime_etl import domain
+from lime_etl.adapters import sqlalchemy_job_logger
 
 __all__ = (
-    "AbstractBatchLoggingService",
-    "BatchLoggingService",
-    "ConsoleBatchLoggingService",
+    "SqlAlchemyBatchLogger",
+    "ConsoleBatchLogger",
 )
 
 
-class AbstractBatchLoggingService(abc.ABC):
-    @abc.abstractmethod
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLoggingService:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def log_error(self, message: str, /) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def log_info(self, message: str, /) -> None:
-        raise NotImplementedError
-
-
-class BatchLoggingService(AbstractBatchLoggingService):
+class SqlAlchemyBatchLogger(domain.BatchLogger):
     def __init__(
         self,
+        *,
         batch_id: domain.UniqueId,
         session: orm.Session,
         ts_adapter: domain.TimestampAdapter,
@@ -37,8 +22,8 @@ class BatchLoggingService(AbstractBatchLoggingService):
         self._ts_adapter = ts_adapter
         super().__init__()
 
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLoggingService:
-        return adapters.SqlAlchemyJobLoggingService(
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLogger:
+        return sqlalchemy_job_logger.SqlAlchemyJobLogger(
             batch_id=self._batch_id,
             job_id=job_id,
             session=self._session,
@@ -70,13 +55,13 @@ class BatchLoggingService(AbstractBatchLoggingService):
         )
 
 
-class ConsoleBatchLoggingService(AbstractBatchLoggingService):
+class ConsoleBatchLogger(domain.BatchLogger):
     def __init__(self, batch_id: domain.UniqueId):
         self.batch_id = batch_id
         super().__init__()
 
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLoggingService:
-        return adapters.ConsoleJobLoggingService()
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLogger:
+        return sqlalchemy_job_logger.ConsoleJobLogger()
 
     def log_error(self, message: str, /) -> None:
         print(f"ERROR: {message}")

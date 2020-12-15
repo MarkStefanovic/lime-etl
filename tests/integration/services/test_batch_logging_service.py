@@ -4,17 +4,16 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from lime_etl.domain import value_objects
-from lime_etl.services import batch_logging_service
+import lime_etl as le
 from tests import conftest
 
 
 @pytest.fixture
 def batch_logger(
     session: orm.Session,
-) -> batch_logging_service.BatchLoggingService:
-    return batch_logging_service.BatchLoggingService(
-        batch_id=value_objects.UniqueId("a" * 32),
+) -> le.SqlAlchemyBatchLogger:
+    return le.SqlAlchemyBatchLogger(
+        batch_id=le.UniqueId("a" * 32),
         session=session,
         ts_adapter=conftest.StaticTimestampAdapter(datetime.datetime(2020, 1, 2)),
     )
@@ -22,7 +21,7 @@ def batch_logger(
 
 def test_batch_logger_log_error(
     in_memory_db: sa.engine.Engine,
-    batch_logger: batch_logging_service.AbstractBatchLoggingService,
+    batch_logger: le.BatchLogger,
 ) -> None:
     batch_logger.log_error("Test Message")
     with in_memory_db.begin() as con:
@@ -36,7 +35,7 @@ def test_batch_logger_log_error(
 
 def test_batch_logger_log_info(
     in_memory_db: sa.engine.Engine,
-    batch_logger: batch_logging_service.AbstractBatchLoggingService,
+    batch_logger: le.BatchLogger,
 ) -> None:
     batch_logger.log_info("Test Message")
     with in_memory_db.begin() as con:

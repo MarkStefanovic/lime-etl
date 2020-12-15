@@ -9,8 +9,8 @@ from tests import conftest
 
 
 @pytest.fixture
-def job_logger(session: orm.Session) -> le.SqlAlchemyJobLoggingService:
-    return le.SqlAlchemyJobLoggingService(
+def job_logger(session: orm.Session) -> le.SqlAlchemyJobLogger:
+    return le.SqlAlchemyJobLogger(
         session=session,
         batch_id=le.UniqueId("a" * 32),
         job_id=le.UniqueId("b" * 32),
@@ -20,7 +20,7 @@ def job_logger(session: orm.Session) -> le.SqlAlchemyJobLoggingService:
 
 def test_job_logger_log_error(
     in_memory_db: sa.engine.Engine,
-    job_logger: le.SqlAlchemyJobLoggingService,
+    job_logger: le.SqlAlchemyJobLogger,
 ) -> None:
     job_logger.log_error("Test Message")
     with in_memory_db.begin() as con:
@@ -35,7 +35,7 @@ def test_job_logger_log_error(
 
 def test_job_logger_log_info(
     in_memory_db: sa.engine.Engine,
-    job_logger: le.SqlAlchemyJobLoggingService,
+    job_logger: le.SqlAlchemyJobLogger,
 ) -> None:
     job_logger.log_info("Test Message")
     with in_memory_db.begin() as con:

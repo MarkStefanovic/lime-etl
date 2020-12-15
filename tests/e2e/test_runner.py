@@ -87,7 +87,7 @@ class MessageJob(le.JobSpec[MessageUOW]):
     def run(
         self,
         uow: MessageUOW,
-        logger: le.JobLoggingService,
+        logger: le.JobLogger,
     ) -> le.JobStatus:
         with uow:
             uow.message_repo.add_all(self._messages)
@@ -127,7 +127,7 @@ class MessageJob(le.JobSpec[MessageUOW]):
     def test(
         self,
         uow: MessageUOW,
-        logger: le.JobLoggingService,
+        logger: le.JobLogger,
     ) -> typing.List[le.SimpleJobTestResult]:
         with uow:
             result = uow.message_repo.all()

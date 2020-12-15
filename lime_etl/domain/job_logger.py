@@ -1,9 +1,9 @@
 import abc
 
-__all__ = ("JobLoggingService",)
+__all__ = ("JobLogger",)
 
 
-class JobLoggingService(abc.ABC):
+class JobLogger(abc.ABC):
     @abc.abstractmethod
     def log_error(self, message: str, /) -> None:
         raise NotImplementedError

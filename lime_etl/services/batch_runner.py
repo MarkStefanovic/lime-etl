@@ -14,7 +14,6 @@ from lime_etl.services import (
     batch_spec,
     job_spec,
     admin_unit_of_work,
-    batch_logging_service,
 )
 
 __all__ = (
@@ -51,7 +50,7 @@ def run_batch(
     adapters.admin_orm.start_mappers()
     admin_session_factory = orm.sessionmaker(bind=admin_engine)
 
-    logger = batch_logging_service.BatchLoggingService(
+    logger = adapters.SqlAlchemyBatchLogger(
         batch_id=batch.batch_id,
         session=admin_session_factory(),
         ts_adapter=batch.ts_adapter,
@@ -73,8 +72,6 @@ def run_batch(
             )
             uow.batch_repo.add(new_batch.to_dto())
             uow.save()
-
-
 
         logger.log_info(f"Staring batch [{batch.batch_name.value}]...")
         batch_uow = batch.create_uow()
@@ -122,7 +119,7 @@ def run_batch_or_fail(
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
-    logger: batch_logging_service.AbstractBatchLoggingService,
+    logger: domain.batch_logger.BatchLogger,
     start_time: domain.Timestamp,
 ) -> domain.BatchStatus:
     jobs = batch.create_jobs(batch_uow)
@@ -244,7 +241,7 @@ def run_job(
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
-    logger: domain.JobLoggingService,
+    logger: domain.JobLogger,
 ) -> domain.JobResult:
     result: domain.JobResult = run_job_pre_handlers(
         admin_uow=admin_uow,
@@ -292,7 +289,7 @@ def run_job_pre_handlers(
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
-    logger: domain.JobLoggingService,
+    logger: domain.JobLogger,
 ) -> domain.JobResult:
     logger.log_info(f"Starting [{job.job_name.value}]...")
     start_time = batch.ts_adapter.now()
@@ -343,7 +340,7 @@ def run_jobs_with_tests(
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
-    logger: domain.JobLoggingService,
+    logger: domain.JobLogger,
     start_time: domain.Timestamp,
 ) -> domain.JobResult:
     result, execution_millis = run_job_with_retry(
@@ -417,7 +414,7 @@ def run_job_with_retry(
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
-    logger: domain.JobLoggingService,
+    logger: domain.JobLogger,
     max_retries: int,
     retries_so_far: int,
     start_time: domain.Timestamp,
