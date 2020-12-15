@@ -2,7 +2,7 @@ import datetime
 import typing
 
 from lime_etl import domain
-from lime_etl.services import admin_unit_of_work, job_logging_service, job_spec
+from lime_etl.services import admin_unit_of_work, job_spec
 
 __all__ = ("DeleteOldLogs",)
 
@@ -18,7 +18,7 @@ class DeleteOldLogs(job_spec.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
     def run(
         self,
         uow: admin_unit_of_work.AdminUnitOfWork,
-        logger: job_logging_service.AbstractJobLoggingService,
+        logger: domain.JobLoggingService,
     ) -> domain.JobStatus:
         with uow:
             uow.batch_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
@@ -42,7 +42,7 @@ class DeleteOldLogs(job_spec.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
     def test(
         self,
         uow: admin_unit_of_work.AdminUnitOfWork,
-        logger: job_logging_service.AbstractJobLoggingService,
+        logger: domain.JobLoggingService,
     ) -> typing.Collection[domain.SimpleJobTestResult]:
         with uow:
             now = uow.ts_adapter.now().value

@@ -1,33 +1,20 @@
-import abc
-
 from sqlalchemy import orm
 
-from lime_etl import domain, adapters
+from lime_etl import domain
 
 __all__ = (
-    "AbstractJobLoggingService",
-    "JobLoggingService",
+    "SqlAlchemyJobLoggingService",
     "ConsoleJobLoggingService",
 )
 
 
-class AbstractJobLoggingService(abc.ABC):
-    @abc.abstractmethod
-    def log_error(self, message: str, /) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def log_info(self, message: str, /) -> None:
-        raise NotImplementedError
-
-
-class JobLoggingService(AbstractJobLoggingService):
+class SqlAlchemyJobLoggingService(domain.JobLoggingService):
     def __init__(
         self,
         batch_id: domain.UniqueId,
         job_id: domain.UniqueId,
         session: orm.Session,
-        ts_adapter: adapters.TimestampAdapter,
+        ts_adapter: domain.TimestampAdapter,
     ):
         self._batch_id = batch_id
         self._job_id = job_id
@@ -63,7 +50,7 @@ class JobLoggingService(AbstractJobLoggingService):
         )
 
 
-class ConsoleJobLoggingService(AbstractJobLoggingService):
+class ConsoleJobLoggingService(domain.JobLoggingService):
     def __init__(self) -> None:
         super().__init__()
 

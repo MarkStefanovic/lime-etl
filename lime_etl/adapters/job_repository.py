@@ -5,7 +5,6 @@ import lime_uow as lu
 from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import desc, orm
 
-from lime_etl.adapters import timestamp_adapter
 from lime_etl import domain
 
 
@@ -35,7 +34,7 @@ class SqlAlchemyJobRepository(
     def __init__(
         self,
         session: orm.Session,
-        ts_adapter: timestamp_adapter.TimestampAdapter,
+        ts_adapter: domain.TimestampAdapter,
     ):
         self._ts_adapter = ts_adapter
         super().__init__(session)

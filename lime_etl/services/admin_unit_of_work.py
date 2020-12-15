@@ -6,7 +6,7 @@ import typing
 import lime_uow as lu
 from sqlalchemy import orm
 
-from lime_etl import adapters
+from lime_etl import domain, adapters
 
 __all__ = (
     "AdminUnitOfWork",
@@ -37,7 +37,7 @@ class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def ts_adapter(self) -> adapters.TimestampAdapter:
+    def ts_adapter(self) -> domain.TimestampAdapter:
         raise NotImplementedError
 
 
@@ -46,7 +46,7 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
     def __init__(
         self,
         session_factory: orm.sessionmaker,
-        ts_adapter: adapters.TimestampAdapter = adapters.LocalTimestampAdapter(),
+        ts_adapter: domain.TimestampAdapter = adapters.LocalTimestampAdapter(),
     ):
         super().__init__()
         self._session_factory = session_factory
@@ -72,7 +72,7 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
         return self.get(adapters.JobLogRepository)  # type: ignore  # see mypy issue 5374
 
     @property
-    def ts_adapter(self) -> adapters.TimestampAdapter:
+    def ts_adapter(self) -> domain.TimestampAdapter:
         return self._ts_adapter
 
     def create_resources(

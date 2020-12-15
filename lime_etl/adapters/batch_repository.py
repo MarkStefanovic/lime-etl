@@ -3,13 +3,11 @@ import datetime
 import typing
 
 import lime_uow as lu
-from lime_uow import sqlalchemy_resources as lsa
 import sqlalchemy as sa
+from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy.orm import Session
 
-from lime_etl.adapters import timestamp_adapter
 from lime_etl import domain
-
 
 __all__ = (
     "BatchRepository",
@@ -33,7 +31,7 @@ class SqlAlchemyBatchRepository(
     def __init__(
         self,
         session: Session,
-        ts_adapter: timestamp_adapter.TimestampAdapter,
+        ts_adapter: domain.TimestampAdapter,
     ):
         super().__init__(session)
         self._ts_adapter = ts_adapter

@@ -5,9 +5,7 @@ import typing
 import lime_uow as lu
 
 from lime_etl import domain, adapters
-from lime_etl.services import (
-    job_spec,
-)
+from lime_etl.services import job_spec
 
 UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork)
 
@@ -41,7 +39,7 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
         return domain.TimeoutSeconds(None)
 
     @property
-    def ts_adapter(self) -> adapters.TimestampAdapter:
+    def ts_adapter(self) -> domain.TimestampAdapter:
         return adapters.LocalTimestampAdapter()
 
     def __repr__(self) -> str:

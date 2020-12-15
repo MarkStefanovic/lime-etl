@@ -13,7 +13,6 @@ from lime_etl import domain, adapters
 from lime_etl.services import (
     batch_spec,
     job_spec,
-    job_logging_service,
     admin_unit_of_work,
     batch_logging_service,
 )
@@ -245,7 +244,7 @@ def run_job(
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
-    logger: job_logging_service.AbstractJobLoggingService,
+    logger: domain.JobLoggingService,
 ) -> domain.JobResult:
     result: domain.JobResult = run_job_pre_handlers(
         admin_uow=admin_uow,
@@ -293,7 +292,7 @@ def run_job_pre_handlers(
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
-    logger: job_logging_service.AbstractJobLoggingService,
+    logger: domain.JobLoggingService,
 ) -> domain.JobResult:
     logger.log_info(f"Starting [{job.job_name.value}]...")
     start_time = batch.ts_adapter.now()
@@ -344,7 +343,7 @@ def run_jobs_with_tests(
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
     job_id: domain.UniqueId,
-    logger: job_logging_service.AbstractJobLoggingService,
+    logger: domain.JobLoggingService,
     start_time: domain.Timestamp,
 ) -> domain.JobResult:
     result, execution_millis = run_job_with_retry(
@@ -418,7 +417,7 @@ def run_job_with_retry(
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
     job: job_spec.JobSpec[UoW],
-    logger: job_logging_service.AbstractJobLoggingService,
+    logger: domain.JobLoggingService,
     max_retries: int,
     retries_so_far: int,
     start_time: domain.Timestamp,

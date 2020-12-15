@@ -3,7 +3,6 @@ import abc
 from sqlalchemy import orm
 
 from lime_etl import domain, adapters
-from lime_etl.services import job_logging_service
 
 __all__ = (
     "AbstractBatchLoggingService",
@@ -14,7 +13,7 @@ __all__ = (
 
 class AbstractBatchLoggingService(abc.ABC):
     @abc.abstractmethod
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> job_logging_service.AbstractJobLoggingService:
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLoggingService:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -31,15 +30,15 @@ class BatchLoggingService(AbstractBatchLoggingService):
         self,
         batch_id: domain.UniqueId,
         session: orm.Session,
-        ts_adapter: adapters.TimestampAdapter,
+        ts_adapter: domain.TimestampAdapter,
     ):
         self._batch_id = batch_id
         self._session = session
         self._ts_adapter = ts_adapter
         super().__init__()
 
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> job_logging_service.JobLoggingService:
-        return job_logging_service.JobLoggingService(
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLoggingService:
+        return adapters.SqlAlchemyJobLoggingService(
             batch_id=self._batch_id,
             job_id=job_id,
             session=self._session,
@@ -76,8 +75,8 @@ class ConsoleBatchLoggingService(AbstractBatchLoggingService):
         self.batch_id = batch_id
         super().__init__()
 
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> job_logging_service.AbstractJobLoggingService:
-        return job_logging_service.ConsoleJobLoggingService()
+    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLoggingService:
+        return adapters.ConsoleJobLoggingService()
 
     def log_error(self, message: str, /) -> None:
         print(f"ERROR: {message}")

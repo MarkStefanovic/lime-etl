@@ -4,24 +4,23 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from lime_etl.domain import value_objects
-from lime_etl.services import job_logging_service
+import lime_etl as le
 from tests import conftest
 
 
 @pytest.fixture
-def job_logger(session: orm.Session) -> job_logging_service.JobLoggingService:
-    return job_logging_service.JobLoggingService(
+def job_logger(session: orm.Session) -> le.SqlAlchemyJobLoggingService:
+    return le.SqlAlchemyJobLoggingService(
         session=session,
-        batch_id=value_objects.UniqueId("a" * 32),
-        job_id=value_objects.UniqueId("b" * 32),
+        batch_id=le.UniqueId("a" * 32),
+        job_id=le.UniqueId("b" * 32),
         ts_adapter=conftest.StaticTimestampAdapter(datetime.datetime(2020, 1, 1)),
     )
 
 
 def test_job_logger_log_error(
     in_memory_db: sa.engine.Engine,
-    job_logger: job_logging_service.JobLoggingService,
+    job_logger: le.SqlAlchemyJobLoggingService,
 ) -> None:
     job_logger.log_error("Test Message")
     with in_memory_db.begin() as con:
@@ -36,7 +35,7 @@ def test_job_logger_log_error(
 
 def test_job_logger_log_info(
     in_memory_db: sa.engine.Engine,
-    job_logger: job_logging_service.JobLoggingService,
+    job_logger: le.SqlAlchemyJobLoggingService,
 ) -> None:
     job_logger.log_info("Test Message")
     with in_memory_db.begin() as con:
