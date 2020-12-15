@@ -24,8 +24,6 @@ def test_sqlalchemy_job_log_entry_repository_delete_old_entries(
             ({'f'*32!r}, {'b'*32!r}, {'a' * 32!r}, 'Error', 'test message 2', '2010-01-03 02:01:03');
     """
     )
-    repo = le.SqlAlchemyJobLogRepository(
-        session=session, ts_adapter=ts_adapter
-    )
+    repo = le.SqlAlchemyJobLogRepository(session=session, ts_adapter=ts_adapter)
     actual = repo.delete_old_entries(days_to_keep=le.DaysToKeep(10))
     assert actual == 2

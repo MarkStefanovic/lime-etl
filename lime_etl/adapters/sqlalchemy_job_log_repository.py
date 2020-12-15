@@ -1,30 +1,17 @@
-import abc
 import datetime
 import typing
 
-import lime_uow as lu
 from lime_uow import sqlalchemy_resources as lsa
 from sqlalchemy import orm
 
 from lime_etl import domain
 
-__all__ = (
-    "JobLogRepository",
-    "SqlAlchemyJobLogRepository",
-)
 
-
-class JobLogRepository(
-    lu.Repository[domain.JobLogEntryDTO],
-    abc.ABC,
-):
-    @abc.abstractmethod
-    def delete_old_entries(self, days_to_keep: domain.DaysToKeep) -> int:
-        raise NotImplementedError
+__all__ = ("SqlAlchemyJobLogRepository",)
 
 
 class SqlAlchemyJobLogRepository(
-    JobLogRepository,
+    domain.JobLogRepository,
     lsa.SqlAlchemyRepository[domain.JobLogEntryDTO],
 ):
     def __init__(
@@ -49,5 +36,5 @@ class SqlAlchemyJobLogRepository(
         return domain.JobLogEntryDTO
 
     @classmethod
-    def interface(cls) -> typing.Type[JobLogRepository]:
-        return JobLogRepository
+    def interface(cls) -> typing.Type[domain.JobLogRepository]:
+        return domain.JobLogRepository

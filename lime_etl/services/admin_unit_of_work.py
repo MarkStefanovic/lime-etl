@@ -32,7 +32,7 @@ class AdminUnitOfWork(lu.UnitOfWork, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def job_log_repo(self) -> adapters.JobLogRepository:
+    def job_log_repo(self) -> domain.JobLogRepository:
         raise NotImplementedError
 
     @property
@@ -68,8 +68,8 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
         return self.get(domain.JobRepository)  # type: ignore  # see mypy issue 5374
 
     @property
-    def job_log_repo(self) -> adapters.JobLogRepository:
-        return self.get(adapters.JobLogRepository)  # type: ignore  # see mypy issue 5374
+    def job_log_repo(self) -> domain.JobLogRepository:
+        return self.get(domain.JobLogRepository)  # type: ignore  # see mypy issue 5374
 
     @property
     def ts_adapter(self) -> domain.TimestampAdapter:
@@ -89,7 +89,7 @@ class SqlAlchemyAdminUnitOfWork(AdminUnitOfWork):
             adapters.SqlAlchemyJobRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
-            adapters.SqlAlchemyJobLogRepository(
+            adapters.sqlalchemy_job_log_repository.SqlAlchemyJobLogRepository(
                 session=session, ts_adapter=self._ts_adapter
             ),
         }
