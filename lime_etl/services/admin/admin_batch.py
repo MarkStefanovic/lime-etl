@@ -3,23 +3,25 @@ import typing
 from sqlalchemy import orm
 
 from lime_etl import domain, adapters
-from lime_etl.services import admin_unit_of_work, batch_spec, admin
+from lime_etl.services import admin_unit_of_work, admin
 import sqlalchemy as sa
 
 __all__ = ("AdminBatch",)
 
 
-class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
+class AdminBatch(domain.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
     def __init__(
         self,
         *,
         admin_engine_uri: domain.DbUri,
         admin_schema: domain.SchemaName,
-        days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3)
+        days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
+        ts_adapter: domain.TimestampAdapter = adapters.LocalTimestampAdapter(),
     ):
         self._admin_engine_uri = admin_engine_uri
         self._admin_schema = admin_schema
         self._days_logs_to_keep = days_logs_to_keep
+        self._ts_adapter = ts_adapter
 
     @property
     def batch_name(self) -> domain.BatchName:
@@ -41,5 +43,5 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
         adapters.admin_orm.start_mappers()
         admin_session_factory = orm.sessionmaker(bind=admin_engine)
         return admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
-            session_factory=admin_session_factory, ts_adapter=self.ts_adapter
+            session_factory=admin_session_factory, ts_adapter=self._ts_adapter
         )
