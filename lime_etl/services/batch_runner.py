@@ -12,7 +12,6 @@ from sqlalchemy import orm
 from lime_etl import domain, adapters
 from lime_etl.services import (
     batch_spec,
-    job_spec,
     admin_unit_of_work,
 )
 
@@ -239,7 +238,7 @@ def run_job(
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
-    job: job_spec.JobSpec[UoW],
+    job: domain.JobSpec[UoW],
     job_id: domain.UniqueId,
     logger: domain.JobLogger,
 ) -> domain.JobResult:
@@ -287,7 +286,7 @@ def run_job_pre_handlers(
     admin_uow: admin_unit_of_work.AdminUnitOfWork,
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
-    job: job_spec.JobSpec[UoW],
+    job: domain.JobSpec[UoW],
     job_id: domain.UniqueId,
     logger: domain.JobLogger,
 ) -> domain.JobResult:
@@ -338,7 +337,7 @@ def run_jobs_with_tests(
     *,
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
-    job: job_spec.JobSpec[UoW],
+    job: domain.JobSpec[UoW],
     job_id: domain.UniqueId,
     logger: domain.JobLogger,
     start_time: domain.Timestamp,
@@ -413,7 +412,7 @@ def run_job_with_retry(
     *,
     batch: batch_spec.BatchSpec[UoW],
     batch_uow: UoW,
-    job: job_spec.JobSpec[UoW],
+    job: domain.JobSpec[UoW],
     logger: domain.JobLogger,
     max_retries: int,
     retries_so_far: int,
@@ -448,7 +447,7 @@ def run_job_with_retry(
 
 
 def check_for_duplicate_job_names(
-    jobs: typing.Collection[job_spec.JobSpec[UoW]], /
+    jobs: typing.Collection[domain.JobSpec[UoW]], /
 ) -> None:
     job_names = [job.job_name for job in jobs]
     duplicates = {
@@ -459,7 +458,7 @@ def check_for_duplicate_job_names(
 
 
 def check_dependencies(
-    jobs: typing.List[job_spec.JobSpec[UoW]], /
+    jobs: typing.List[domain.JobSpec[UoW]], /
 ) -> None:
     job_names = {job.job_name for job in jobs}
     unresolved_dependencies_by_table = {

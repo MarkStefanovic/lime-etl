@@ -5,7 +5,6 @@ import typing
 import lime_uow as lu
 
 from lime_etl import domain, adapters
-from lime_etl.services import job_spec
 
 UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork)
 
@@ -23,7 +22,7 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def create_jobs(self, uow: UoW) -> typing.List[job_spec.JobSpec[UoW]]:
+    def create_jobs(self, uow: UoW) -> typing.List[domain.JobSpec[UoW]]:
         raise NotImplementedError
 
     @abc.abstractmethod

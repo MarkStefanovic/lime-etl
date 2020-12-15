@@ -2,12 +2,12 @@ import datetime
 import typing
 
 from lime_etl import domain
-from lime_etl.services import admin_unit_of_work, job_spec
+from lime_etl.services import admin_unit_of_work
 
 __all__ = ("DeleteOldLogs",)
 
 
-class DeleteOldLogs(job_spec.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
+class DeleteOldLogs(domain.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
     def __init__(self, days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3)):
         self._days_logs_to_keep = days_logs_to_keep
 

@@ -3,7 +3,7 @@ import typing
 from sqlalchemy import orm
 
 from lime_etl import domain, adapters
-from lime_etl.services import admin_unit_of_work, batch_spec, job_spec, admin
+from lime_etl.services import admin_unit_of_work, batch_spec, admin
 import sqlalchemy as sa
 
 __all__ = ("AdminBatch",)
@@ -27,7 +27,7 @@ class AdminBatch(batch_spec.BatchSpec[admin_unit_of_work.AdminUnitOfWork]):
 
     def create_jobs(
         self, uow: admin_unit_of_work.AdminUnitOfWork
-    ) -> typing.List[job_spec.JobSpec[admin_unit_of_work.AdminUnitOfWork]]:
+    ) -> typing.List[domain.JobSpec[admin_unit_of_work.AdminUnitOfWork]]:
         return [
             admin.delete_old_logs.DeleteOldLogs(
                 days_logs_to_keep=self._days_logs_to_keep,
