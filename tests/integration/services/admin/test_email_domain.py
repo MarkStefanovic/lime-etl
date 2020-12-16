@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from lime_etl.services.admin.send_email_notifications import email_domain
+from lime_etl.service.admin.send_email_notifications import email_domain
 
 
 @pytest.mark.parametrize(

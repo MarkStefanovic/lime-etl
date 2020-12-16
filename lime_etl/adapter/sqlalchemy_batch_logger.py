@@ -1,7 +1,7 @@
 from sqlalchemy import orm
 
 from lime_etl import domain
-from lime_etl.adapters import sqlalchemy_job_logger
+from lime_etl.adapter import sqlalchemy_job_logger
 
 __all__ = (
     "SqlAlchemyBatchLogger",

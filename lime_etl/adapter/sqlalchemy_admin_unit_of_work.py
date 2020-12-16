@@ -6,7 +6,7 @@ import lime_uow as lu
 from sqlalchemy import orm
 
 from lime_etl import domain
-from lime_etl.adapters import (
+from lime_etl.adapter import (
     local_timestamp_adapter,
     sqlalchemy_admin_session,
     sqlalchemy_batch_repository,

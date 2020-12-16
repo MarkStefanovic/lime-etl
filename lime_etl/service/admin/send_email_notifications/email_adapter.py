@@ -3,8 +3,8 @@ from email.message import EmailMessage
 from smtplib import SMTP
 
 from lime_etl.domain import value_objects
-from lime_etl.services.admin.send_email_notifications import batch_delta
-from lime_etl.services.admin.send_email_notifications import email_domain
+from lime_etl.service.admin.send_email_notifications import batch_delta
+from lime_etl.service.admin.send_email_notifications import email_domain
 
 
 class EmailAdapter(typing.Protocol):

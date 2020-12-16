@@ -8,7 +8,7 @@ import lime_uow as lu
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from lime_etl import domain, adapters
+from lime_etl import domain, adapter
 
 __all__ = (
     "run_batches_in_parallel",
@@ -24,7 +24,7 @@ def run_batches_in_parallel(
     admin_schema: typing.Optional[str] = "etl",
     max_processes: int = 3,
     timeout: typing.Optional[int] = None,
-    ts_adapter: domain.TimestampAdapter = adapters.LocalTimestampAdapter(),
+    ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
 ) -> typing.List[domain.BatchStatus]:
     params = [(batch, admin_engine_uri, admin_schema, ts_adapter) for batch in batches]
     with multiprocessing.Pool(max_processes, maxtasksperchild=1) as pool:
@@ -36,22 +36,22 @@ def run_batch(
     batch: domain.BatchSpec[UoW],
     admin_engine_uri: str,
     admin_schema: typing.Optional[str] = "etl",
-    ts_adapter: domain.TimestampAdapter = adapters.LocalTimestampAdapter(),
+    ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
     start_time = ts_adapter.now()
 
     admin_engine = sa.create_engine(admin_engine_uri)
-    adapters.admin_metadata.create_all(bind=admin_engine)
-    adapters.admin_orm.set_schema(schema=domain.SchemaName(admin_schema))
-    adapters.admin_orm.start_mappers()
+    adapter.admin_metadata.create_all(bind=admin_engine)
+    adapter.admin_orm.set_schema(schema=domain.SchemaName(admin_schema))
+    adapter.admin_orm.start_mappers()
     admin_session_factory = orm.sessionmaker(bind=admin_engine)
 
-    logger = adapters.SqlAlchemyBatchLogger(
+    logger = adapter.SqlAlchemyBatchLogger(
         batch_id=batch.batch_id,
         session=admin_session_factory(),
         ts_adapter=ts_adapter,
     )
-    admin_uow: domain.AdminUnitOfWork = adapters.SqlAlchemyAdminUnitOfWork(
+    admin_uow: domain.AdminUnitOfWork = adapter.SqlAlchemyAdminUnitOfWork(
         session_factory=admin_session_factory, ts_adapter=ts_adapter
     )
 

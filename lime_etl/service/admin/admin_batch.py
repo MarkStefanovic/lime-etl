@@ -3,8 +3,8 @@ import typing
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from lime_etl import domain, adapters
-from lime_etl.services import admin
+from lime_etl import domain, adapter
+from lime_etl.service import admin
 
 __all__ = ("AdminBatch",)
 
@@ -16,7 +16,7 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
         admin_engine_uri: domain.DbUri,
         admin_schema: domain.SchemaName,
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
-        ts_adapter: domain.TimestampAdapter = adapters.LocalTimestampAdapter(),
+        ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
     ):
         self._admin_engine_uri = admin_engine_uri
         self._admin_schema = admin_schema
@@ -38,10 +38,10 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
 
     def create_uow(self) -> domain.admin_unit_of_work.AdminUnitOfWork:
         admin_engine = sa.create_engine(self._admin_engine_uri.value)
-        adapters.admin_metadata.create_all(bind=admin_engine)
-        adapters.admin_orm.set_schema(schema=self._admin_schema)
-        adapters.admin_orm.start_mappers()
+        adapter.admin_metadata.create_all(bind=admin_engine)
+        adapter.admin_orm.set_schema(schema=self._admin_schema)
+        adapter.admin_orm.start_mappers()
         admin_session_factory = orm.sessionmaker(bind=admin_engine)
-        return adapters.SqlAlchemyAdminUnitOfWork(
+        return adapter.SqlAlchemyAdminUnitOfWork(
             session_factory=admin_session_factory, ts_adapter=self._ts_adapter
         )

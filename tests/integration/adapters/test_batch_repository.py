@@ -2,7 +2,7 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-import adapters.sqlalchemy_batch_repository
+import adapter.sqlalchemy_batch_repository
 import lime_etl as le
 from tests import conftest
 
@@ -40,7 +40,7 @@ def test_sqlalchemy_batch_repository_add(session: Session) -> None:
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
-    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
+    repo = adapter.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
     repo.add(new_batch.to_dto())
@@ -68,7 +68,7 @@ def test_sqlalchemy_batch_repository_update(
         datetime.datetime(2001, 1, 2, 3, 4, 5)
     )
 
-    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
+    repo = adapter.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
     new_batch = le.BatchStatus(
@@ -130,7 +130,7 @@ def test_sqlalchemy_batch_repository_delete_old_entries(session: Session) -> Non
     ts_adapter = conftest.static_timestamp_adapter(
         datetime.datetime(2020, 1, 1, 1, 1, 1)
     )
-    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
+    repo = adapter.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session,
         ts_adapter=ts_adapter,
     )
@@ -199,7 +199,7 @@ def test_sqlalchemy_batch_repository_get_latest(session: Session) -> None:
     )
     session.commit()
     ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
-    repo = adapters.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
+    repo = adapter.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
     result = repo.get_latest()
