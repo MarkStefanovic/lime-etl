@@ -9,7 +9,6 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 from lime_etl import domain, adapters
-from lime_etl.services import admin_unit_of_work
 
 __all__ = (
     "run_batches_in_parallel",
@@ -52,7 +51,7 @@ def run_batch(
         session=admin_session_factory(),
         ts_adapter=ts_adapter,
     )
-    admin_uow = admin_unit_of_work.SqlAlchemyAdminUnitOfWork(
+    admin_uow: domain.AdminUnitOfWork = adapters.SqlAlchemyAdminUnitOfWork(
         session_factory=admin_session_factory, ts_adapter=ts_adapter
     )
 
@@ -114,7 +113,7 @@ def run_batch(
 
 def run_batch_or_fail(
     *,
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
+    admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
     batch: domain.BatchSpec[UoW],
     batch_uow: UoW,
     logger: domain.batch_logger.BatchLogger,
@@ -236,7 +235,7 @@ def run_batch_or_fail(
 
 def run_job(
     *,
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
+    admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
     batch: domain.BatchSpec[UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
@@ -288,7 +287,7 @@ def run_job(
 
 def run_job_pre_handlers(
     *,
-    admin_uow: admin_unit_of_work.AdminUnitOfWork,
+    admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
     batch: domain.BatchSpec[UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],

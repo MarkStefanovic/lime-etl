@@ -2,12 +2,11 @@ import datetime
 import typing
 
 from lime_etl import domain
-from lime_etl.services import admin_unit_of_work
 
 __all__ = ("DeleteOldLogs",)
 
 
-class DeleteOldLogs(domain.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
+class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
     def __init__(self, days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3)):
         self._days_logs_to_keep = days_logs_to_keep
 
@@ -17,7 +16,7 @@ class DeleteOldLogs(domain.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
 
     def run(
         self,
-        uow: admin_unit_of_work.AdminUnitOfWork,
+        uow: domain.admin_unit_of_work.AdminUnitOfWork,
         logger: domain.JobLogger,
     ) -> domain.JobStatus:
         with uow:
@@ -41,7 +40,7 @@ class DeleteOldLogs(domain.JobSpec[admin_unit_of_work.AdminUnitOfWork]):
 
     def test(
         self,
-        uow: admin_unit_of_work.AdminUnitOfWork,
+        uow: domain.admin_unit_of_work.AdminUnitOfWork,
         logger: domain.JobLogger,
     ) -> typing.Collection[domain.SimpleJobTestResult]:
         with uow:
