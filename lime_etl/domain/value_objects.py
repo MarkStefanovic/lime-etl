@@ -20,6 +20,7 @@ __all__ = (
     "LogLevel",
     "LogLevelOption",
     "LogMessage",
+    "MaxProcesses",
     "MaxRetries",
     "MinSecondsBetweenRefreshes",
     "NonEmptyStr",
@@ -102,6 +103,22 @@ class Flag(ValueObject):
             raise TypeError(
                 f"{self.__class__.__name__} expects an integer, but got {value!r}"
             )
+
+        super().__init__(value)
+
+
+class OptionalPositiveInt(ValueObject):
+    def __init__(self, value: typing.Optional[int], /):
+        if value is not None:
+            if isinstance(value, int):
+                if value < 0:
+                    raise ValueError(
+                        f"{self.__class__.__name__} value must be positive, but got {value!r}."
+                    )
+            else:
+                raise TypeError(
+                    f"{self.__class__.__name__} expects an integer, but got {value!r}"
+                )
 
         super().__init__(value)
 
@@ -385,6 +402,10 @@ class TimeoutSeconds(ValueObject):
             )
 
         super().__init__(value)
+
+
+class MaxProcesses(OptionalPositiveInt):
+    ...
 
 
 class MaxRetries(PositiveInt):

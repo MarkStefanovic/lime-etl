@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 from lime_etl import domain, adapter
-from lime_etl.service import admin
+from lime_etl.service import admin, batch_runner
 
 __all__ = ("AdminBatch",)
 
@@ -14,7 +14,7 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
         self,
         *,
         admin_engine_uri: domain.DbUri,
-        admin_schema: domain.SchemaName,
+        admin_schema: domain.SchemaName = domain.SchemaName("etl"),
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
         ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
     ):
@@ -44,4 +44,12 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
         admin_session_factory = orm.sessionmaker(bind=admin_engine)
         return adapter.SqlAlchemyAdminUnitOfWork(
             session_factory=admin_session_factory, ts_adapter=self._ts_adapter
+        )
+
+    def run(self) -> typing.Optional[domain.BatchStatus]:
+        return batch_runner.run_batch(
+            batch=self,
+            admin_engine_uri=self._admin_engine_uri,
+            admin_schema=self._admin_schema,
+            ts_adapter=self._ts_adapter,
         )

@@ -165,6 +165,9 @@ class DummyBatchRepository(
     def get_latest(self) -> typing.Optional[le.BatchStatusDTO]:
         return sorted(self._current_state, key=lambda e: e.ts)[-1]
 
+    def get_previous(self) -> typing.Optional[le.BatchStatusDTO]:
+        return sorted(self._current_state, key=lambda e: e.ts)[-2]
+
     @classmethod
     def interface(cls) -> typing.Type[le.BatchRepository]:
         return le.BatchRepository

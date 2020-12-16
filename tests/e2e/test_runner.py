@@ -333,8 +333,9 @@ def test_run_admin(postgres_db: sa.engine.Engine, postgres_db_uri: str) -> None:
         days_logs_to_keep=le.DaysToKeep(3),
         admin_schema=admin_schema,
     )
+    admin_uri = le.DbUri(postgres_db_uri)
     actual = le.run_batch(
-        batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=admin_schema.value
+        batch=batch, admin_engine_uri=admin_uri, admin_schema=admin_schema
     )
     assert actual.running == le.Flag(False)
     assert actual.broken_jobs == frozenset()
@@ -349,7 +350,9 @@ def test_run_with_default_parameters_happy_path(
 ) -> None:
     batch = MessageBatchHappyPath(session_factory=messages_session_factory)
     actual = le.run_batch(
-        batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None
+        batch=batch,
+        admin_engine_uri=le.DbUri(postgres_db_uri),
+        admin_schema=le.SchemaName(None),
     )
     expected = {
         "execution_error_message": None,
@@ -472,7 +475,11 @@ def test_run_with_unresolved_dependencies(
 ) -> None:
     batch = MessageBatchWithMissingDependencies(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
-        le.run_batch(batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None)
+        le.run_batch(
+            batch=batch,
+            admin_engine_uri=le.DbUri(postgres_db_uri),
+            admin_schema=le.SchemaName(None),
+        )
     assert (
         "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]"
         in str(e.value)
@@ -526,7 +533,11 @@ def test_run_with_dependencies_out_of_order(
 ) -> None:
     batch = MessageBatchWithDependenciesOutOfOrder(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
-        le.run_batch(batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None)
+        le.run_batch(
+            batch=batch,
+            admin_engine_uri=le.DbUri(postgres_db_uri),
+            admin_schema=le.SchemaName(None),
+        )
     assert (
         "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
         in str(e.value)
@@ -562,7 +573,11 @@ def test_run_with_duplicate_job_names(
 ) -> None:
     batch = MessageBatchWithDuplicateJobNames(messages_session_factory)
     with pytest.raises(le.exceptions.DuplicateJobNamesError) as e:
-        le.run_batch(batch=batch, admin_engine_uri=postgres_db_uri, admin_schema=None)
+        le.run_batch(
+            batch=batch,
+            admin_engine_uri=le.DbUri(postgres_db_uri),
+            admin_schema=le.SchemaName(None),
+        )
     assert (
         "The following job names were included more than once: [hello_world_job] (2)."
         in str(e.value)
@@ -602,11 +617,11 @@ def test_run_batches_in_parallel(
         db_uri=le.DbUri(postgres_db_uri),
     )
     results = le.run_batches_in_parallel(
-        admin_engine_uri=postgres_db_uri,
-        admin_schema=None,
+        admin_engine_uri=le.DbUri(postgres_db_uri),
+        admin_schema=le.SchemaName(None),
         batches=[admin_batch, message_batch],  # type: ignore
-        max_processes=3,
-        timeout=10,
+        max_processes=le.MaxProcesses(3),
+        timeout=le.TimeoutSeconds(10),
     )
     expected = [
         {

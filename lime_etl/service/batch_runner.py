@@ -20,29 +20,29 @@ UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, contravariant=True)
 
 def run_batches_in_parallel(
     batches: typing.Iterable[domain.BatchSpec[UoW]],
-    admin_engine_uri: str,
-    admin_schema: typing.Optional[str] = "etl",
-    max_processes: int = 3,
-    timeout: typing.Optional[int] = None,
+    admin_engine_uri: domain.DbUri,
+    admin_schema: domain.SchemaName = domain.SchemaName("etl"),
+    max_processes: domain.MaxProcesses = domain.MaxProcesses(None),
+    timeout: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
     ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
 ) -> typing.List[domain.BatchStatus]:
     params = [(batch, admin_engine_uri, admin_schema, ts_adapter) for batch in batches]
-    with multiprocessing.Pool(max_processes, maxtasksperchild=1) as pool:
+    with multiprocessing.Pool(max_processes.value, maxtasksperchild=1) as pool:
         future = pool.starmap_async(run_batch, params)
-        return future.get(timeout)
+        return future.get(timeout.value)
 
 
 def run_batch(
     batch: domain.BatchSpec[UoW],
-    admin_engine_uri: str,
-    admin_schema: typing.Optional[str] = "etl",
+    admin_engine_uri: domain.DbUri,
+    admin_schema: domain.SchemaName = domain.SchemaName("etl"),
     ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
     start_time = ts_adapter.now()
 
-    admin_engine = sa.create_engine(admin_engine_uri)
+    admin_engine = sa.create_engine(admin_engine_uri.value)
     adapter.admin_metadata.create_all(bind=admin_engine)
-    adapter.admin_orm.set_schema(schema=domain.SchemaName(admin_schema))
+    adapter.admin_orm.set_schema(schema=admin_schema)
     adapter.admin_orm.start_mappers()
     admin_session_factory = orm.sessionmaker(bind=admin_engine)
 
