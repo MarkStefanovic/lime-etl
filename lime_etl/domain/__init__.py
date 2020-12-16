@@ -1,5 +1,6 @@
 from lime_etl.domain import exceptions
 from lime_etl.domain.admin_unit_of_work import *
+from lime_etl.domain.batch_delta import *
 from lime_etl.domain.batch_log_repository import *
 from lime_etl.domain.batch_logger import *
 from lime_etl.domain.batch_repository import *

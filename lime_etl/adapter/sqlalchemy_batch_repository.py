@@ -48,6 +48,15 @@ class SqlAlchemyBatchRepository(
             .first()
         )
 
+    def get_previous(self) -> typing.Optional[domain.BatchStatusDTO]:
+        # noinspection PyTypeChecker
+        return (
+            self.session.query(domain.BatchStatusDTO)
+                .order_by(sa.desc(domain.BatchStatusDTO.ts))  # type: ignore
+                .offset(1)
+                .first()
+        )
+
     @classmethod
     def interface(cls) -> typing.Type[domain.BatchRepository]:
         return domain.BatchRepository

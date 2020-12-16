@@ -16,3 +16,7 @@ class BatchRepository(lu.Repository[batch_status.BatchStatusDTO], abc.ABC):
     @abc.abstractmethod
     def get_latest(self) -> typing.Optional[batch_status.BatchStatusDTO]:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_previous(self) -> typing.Optional[batch_status.BatchStatusDTO]:
+        raise NotImplementedError

@@ -170,7 +170,7 @@ def test_sqlalchemy_batch_repository_delete_old_entries(session: Session) -> Non
     assert actual_table_update_rows == expected_table_update_rows
 
 
-def test_sqlalchemy_batch_repository_get_latest(session: Session) -> None:
+def test_sqlalchemy_batch_repository_get_previous(session: Session) -> None:
     batch_id_1 = "b1396d94bd55a455baf80a26209349d6"
     batch_id_2 = "b2396d94bd55a455baf80a26209349d6"
     batch_id_3 = "b3396d94bd55a455baf80a26209349d6"
@@ -202,27 +202,30 @@ def test_sqlalchemy_batch_repository_get_latest(session: Session) -> None:
     repo = adapter.sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
         session=session, ts_adapter=ts_adapter
     )
-    result = repo.get_latest()
+    result = repo.get_previous()
+
     expected = le.BatchStatusDTO(
-        id="b2396d94bd55a455baf80a26209349d6",
+        id="b3396d94bd55a455baf80a26209349d6",
         name="test_batch",
         execution_error_message=None,
         execution_error_occurred=False,
         execution_millis=10,
         job_results=[
             le.JobResultDTO(
-                id="j3396d94bd55a455baf80a26209349d6",
-                batch_id="b2396d94bd55a455baf80a26209349d6",
+                id="j2396d94bd55a455baf80a26209349d6",
+                batch_id="b3396d94bd55a455baf80a26209349d6",
                 job_name="test_table",
                 test_results=[],
                 execution_millis=100,
                 execution_error_occurred=False,
                 execution_error_message=None,
                 running=False,
-                ts=datetime.datetime(2020, 1, 1, 1, 1, 5),
+                ts=datetime.datetime(2020, 1, 1, 4, 1, 1),
             )
         ],
         running=False,
-        ts=datetime.datetime(2010, 1, 2, 1, 1, 1),
+        ts=datetime.datetime(2010, 1, 1, 4, 1, 1),
     )
     assert result == expected
+
+
