@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lime-etl"
-version = "0.1.26"
+version = "0.1.27"
 description = "Simple ETL job runner"
 authors = ["Mark Stefanovic"]
 include = ["lime_etl/py.typed"]

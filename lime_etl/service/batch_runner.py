@@ -9,13 +9,31 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 from lime_etl import domain, adapter
+from lime_etl.service import admin
 
 __all__ = (
-    "run_batches_in_parallel",
+    "run_admin",
     "run_batch",
+    "run_batches_in_parallel",
 )
 
 UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, contravariant=True)
+
+
+def run_admin(
+    *,
+    admin_engine_uri: domain.DbUri,
+    admin_schema: domain.SchemaName = domain.SchemaName("etl"),
+    days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
+    ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
+) -> domain.BatchStatus:
+    batch = admin.AdminBatch(
+        admin_engine_uri=admin_engine_uri,
+        admin_schema=admin_schema,
+        days_logs_to_keep=days_logs_to_keep,
+        ts_adapter=ts_adapter,
+    )
+    return batch.run()
 
 
 def run_batches_in_parallel(

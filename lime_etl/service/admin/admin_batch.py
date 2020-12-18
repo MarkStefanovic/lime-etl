@@ -46,7 +46,7 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
             session_factory=admin_session_factory, ts_adapter=self._ts_adapter
         )
 
-    def run(self) -> typing.Optional[domain.BatchStatus]:
+    def run(self) -> domain.BatchStatus:
         return batch_runner.run_batch(
             batch=self,
             admin_engine_uri=self._admin_engine_uri,
