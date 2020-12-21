@@ -22,6 +22,7 @@ class JobResultDTO:
     execution_error_occurred: typing.Optional[bool]
     execution_error_message: typing.Optional[str]
     running: bool
+    skipped: bool
     ts: datetime.datetime
 
     def to_domain(self) -> JobResult:
@@ -70,18 +71,22 @@ class JobResult:
             error_occurred: typing.Optional[bool] = True
             error_message: typing.Optional[str] = self.status.error_message.value
             running = False
+            skipped = False
         elif isinstance(self.status, job_status.JobInProgress):
             error_occurred = None
             error_message = None
             running = True
+            skipped = False
         elif isinstance(self.status, job_status.JobSkipped):
             error_occurred = False
             error_message = None
             running = False
+            skipped = True
         elif isinstance(self.status, job_status.JobRanSuccessfully):
             error_occurred = False
             error_message = None
             running = False
+            skipped = False
         else:
             raise ValueError(f"Expected an instance of job_status.JobStatus, but got {self.status!r}.")
 
@@ -99,6 +104,7 @@ class JobResult:
             execution_error_occurred=error_occurred,
             execution_error_message=error_message,
             running=running,
+            skipped=skipped,
             ts=self.ts.value,
         )
 

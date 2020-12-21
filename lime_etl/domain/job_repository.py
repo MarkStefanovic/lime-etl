@@ -11,12 +11,6 @@ __all__ = ("JobRepository",)
 
 class JobRepository(lu.Repository[job_result.JobResultDTO], abc.ABC):
     @abc.abstractmethod
-    def get_latest(
-        self, job_name: value_objects.JobName, /
-    ) -> typing.Optional[job_result.JobResultDTO]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def get_last_successful_ts(
         self, job_name: value_objects.JobName, /
     ) -> typing.Optional[value_objects.Timestamp]:

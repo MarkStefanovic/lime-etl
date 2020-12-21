@@ -25,16 +25,6 @@ class SqlAlchemyJobRepository(
     def entity_type(self) -> typing.Type[domain.JobResultDTO]:
         return domain.JobResultDTO
 
-    def get_latest(
-        self, job_name: domain.JobName, /
-    ) -> typing.Optional[domain.JobResultDTO]:
-        # noinspection PyTypeChecker
-        return (
-            self.session.query(domain.JobResultDTO)
-            .order_by(desc(domain.JobResultDTO.ts))  # type: ignore
-            .first()
-        )
-
     def get_last_successful_ts(
         self, job_name: domain.JobName, /
     ) -> typing.Optional[domain.Timestamp]:
@@ -43,6 +33,7 @@ class SqlAlchemyJobRepository(
             self._session.query(domain.JobResultDTO)
             .filter(domain.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
             .filter(domain.JobResultDTO.execution_error_occurred.is_(False))  # type: ignore
+            .filter(domain.JobResultDTO.skipped.is_(False))  # type: ignore
             .order_by(desc(domain.JobResultDTO.ts))  # type: ignore
             .first()
         )

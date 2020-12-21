@@ -74,6 +74,7 @@ jobs = Table(
     Column("execution_error_occurred", Boolean, nullable=True),
     Column("execution_error_message", String(2000), nullable=True),
     Column("running", Boolean, nullable=False),
+    Column("skipped", Boolean, nullable=False),
     Column("ts", DateTime, nullable=False),
 )
 
