@@ -16,11 +16,13 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
         admin_engine_uri: domain.DbUri,
         admin_schema: domain.SchemaName = domain.SchemaName("etl"),
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
+        min_seconds_between_runs: domain.MinSecondsBetweenRefreshes = domain.MinSecondsBetweenRefreshes(12 * 60 * 60),
         ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
     ):
         self._admin_engine_uri = admin_engine_uri
         self._admin_schema = admin_schema
         self._days_logs_to_keep = days_logs_to_keep
+        self._min_seconds_between_runs = min_seconds_between_runs
         self._ts_adapter = ts_adapter
 
     @property
@@ -33,6 +35,7 @@ class AdminBatch(domain.BatchSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
         return [
             admin.delete_old_logs.DeleteOldLogs(
                 days_logs_to_keep=self._days_logs_to_keep,
+                min_seconds_between_runs=self._min_seconds_between_runs,
             ),
         ]
 

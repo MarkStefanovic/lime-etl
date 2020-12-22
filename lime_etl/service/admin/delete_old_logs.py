@@ -7,12 +7,21 @@ __all__ = ("DeleteOldLogs",)
 
 
 class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
-    def __init__(self, days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3)):
+    def __init__(
+        self,
+        days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
+        min_seconds_between_runs: domain.MinSecondsBetweenRefreshes = domain.MinSecondsBetweenRefreshes(0),
+    ):
         self._days_logs_to_keep = days_logs_to_keep
+        self._min_seconds_between_runs = min_seconds_between_runs
 
     @property
     def job_name(self) -> domain.JobName:
         return domain.JobName("delete_old_logs")
+
+    @property
+    def min_seconds_between_refreshes(self) -> domain.MinSecondsBetweenRefreshes:
+        return self._min_seconds_between_runs
 
     def run(
         self,

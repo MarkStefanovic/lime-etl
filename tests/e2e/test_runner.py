@@ -368,6 +368,7 @@ def test_run_with_default_parameters_happy_path(
                 "id": "32 chars",
                 "job_name": "hello_world_job",
                 "running": False,
+                "skipped": False,
                 "test_results": [
                     {
                         "execution_error_message": None,
@@ -391,6 +392,7 @@ def test_run_with_default_parameters_happy_path(
                 "id": "32 chars",
                 "job_name": "hello_world_job2",
                 "running": False,
+                "skipped": False,
                 "test_results": [
                     {
                         "execution_error_message": None,
@@ -638,6 +640,7 @@ def test_run_batches_in_parallel(
                     "id": "32 chars",
                     "job_name": "delete_old_logs",
                     "running": False,
+                    "skipped": False,
                     "test_results": [
                         {
                             "execution_error_message": None,
@@ -672,6 +675,7 @@ def test_run_batches_in_parallel(
                     "id": "32 chars",
                     "job_name": "hello_world_job",
                     "running": False,
+                    "skipped": False,
                     "test_results": [
                         {
                             "execution_error_message": None,
@@ -695,6 +699,7 @@ def test_run_batches_in_parallel(
                     "id": "32 chars",
                     "job_name": "hello_world_job2",
                     "running": False,
+                    "skipped": False,
                     "test_results": [
                         {
                             "execution_error_message": None,
