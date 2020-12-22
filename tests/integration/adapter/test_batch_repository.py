@@ -196,7 +196,7 @@ def test_sqlalchemy_batch_repository_get_previous(session: Session) -> None:
     session.commit()
     ts_adapter = conftest.static_timestamp_adapter(datetime.datetime(2020, 1, 1))
     repo = le.SqlAlchemyBatchRepository(session=session, ts_adapter=ts_adapter)
-    result = repo.get_previous()
+    result = repo.get_previous(le.BatchName("test_batch"))
 
     expected = le.BatchStatusDTO(
         id="b3396d94bd55a455baf80a26209349d6",

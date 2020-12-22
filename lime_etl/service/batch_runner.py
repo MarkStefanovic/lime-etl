@@ -319,7 +319,8 @@ def run_job_pre_handlers(
         current_batch = uow.batch_repo.get(batch.batch_id.value).to_domain()
 
     if current_batch is None:
-        raise domain.exceptions.BatchNotFound(batch.batch_id)
+        msg = f"The batch [{batch.batch_id.value}] was not found"
+        raise domain.exceptions.BatchNotFound(msg)
 
     dep_exceptions = {
         jr.job_name.value

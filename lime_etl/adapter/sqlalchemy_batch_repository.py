@@ -40,21 +40,45 @@ class SqlAlchemyBatchRepository(
     def entity_type(self) -> typing.Type[domain.BatchStatusDTO]:
         return domain.BatchStatusDTO
 
-    def get_latest(self) -> typing.Optional[domain.BatchStatusDTO]:
+    def get_latest(
+        self, /, batch_name: domain.BatchName
+    ) -> typing.Optional[domain.BatchStatusDTO]:
         # noinspection PyTypeChecker
         return (
             self.session.query(domain.BatchStatusDTO)
+            .filter(domain.BatchStatusDTO.name == batch_name.value)
             .order_by(sa.desc(domain.BatchStatusDTO.ts))  # type: ignore
             .first()
         )
 
-    def get_previous(self) -> typing.Optional[domain.BatchStatusDTO]:
+    def get_latest_batch_delta(
+        self, /, batch_name: domain.BatchName
+    ) -> domain.BatchDelta:
+        if (current_dto := self.get_latest(batch_name)) is None:
+            raise domain.exceptions.BatchNotFound(
+                f"No previous results for batch {batch_name.value!r} were found."
+            )
+
+        if (previous_dto := self.get_previous(batch_name)) is None:
+            previous = None
+        else:
+            previous = previous_dto.to_domain()
+
+        return domain.BatchDelta(
+            current_results=current_dto.to_domain(),
+            previous_results=previous,
+        )
+
+    def get_previous(
+        self, /, batch_name: domain.BatchName
+    ) -> typing.Optional[domain.BatchStatusDTO]:
         # noinspection PyTypeChecker
         return (
             self.session.query(domain.BatchStatusDTO)
-                .order_by(sa.desc(domain.BatchStatusDTO.ts))  # type: ignore
-                .offset(1)
-                .first()
+            .filter(domain.BatchStatusDTO.name == batch_name.value)
+            .order_by(sa.desc(domain.BatchStatusDTO.ts))  # type: ignore
+            .offset(1)
+            .first()
         )
 
     @classmethod

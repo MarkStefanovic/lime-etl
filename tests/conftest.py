@@ -162,11 +162,18 @@ class DummyBatchRepository(
         self._current_state = [e for e in self.all() if e.ts > cutoff]
         return len(self._current_state)
 
-    def get_latest(self) -> typing.Optional[le.BatchStatusDTO]:
+    def get_latest(self, /, batch_name: le.BatchName) -> typing.Optional[le.BatchStatusDTO]:
         return sorted(self._current_state, key=lambda e: e.ts)[-1]
 
-    def get_previous(self) -> typing.Optional[le.BatchStatusDTO]:
-        return sorted(self._current_state, key=lambda e: e.ts)[-2]
+    def get_latest_batch_delta(self, /, batch_name: le.BatchName) -> le.BatchDelta:
+        current = self.get_latest(batch_name)
+        assert current is not None
+        previous = sorted(self._current_state, key=lambda e: e.ts)[-2]
+        assert previous is not None
+        return le.BatchDelta(
+            current_results=current.to_domain(),
+            previous_results=previous.to_domain(),
+        )
 
     @classmethod
     def interface(cls) -> typing.Type[le.BatchRepository]:

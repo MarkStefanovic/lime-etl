@@ -25,10 +25,8 @@ class LimeETLException(Exception):
 
 
 class BatchNotFound(LimeETLException):
-    def __init__(self, batch_id: value_objects.UniqueId, /):
-        self.batch_id = batch_id
-        msg = f"The batch [{batch_id.value}] was not found"
-        super().__init__(msg)
+    def __init__(self, message: str, /):
+        super().__init__(message)
 
 
 class DependencyErrors(LimeETLException):
