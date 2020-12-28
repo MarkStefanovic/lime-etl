@@ -86,12 +86,13 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def run(
         self,
-        uow: MessageUOW,
+        admin_uow: le.AdminUnitOfWork,
+        batch_uow: MessageUOW,
         logger: le.JobLogger,
     ) -> le.JobStatus:
-        with uow:
-            uow.message_repo.add_all(self._messages)
-            uow.save()
+        with batch_uow:
+            batch_uow.message_repo.add_all(self._messages)
+            batch_uow.save()
         return le.JobStatus.success()
 
     @property
@@ -126,11 +127,12 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def test(
         self,
-        uow: MessageUOW,
+        admin_uow: le.AdminUnitOfWork,
+        batch_uow: MessageUOW,
         logger: le.JobLogger,
     ) -> typing.List[le.SimpleJobTestResult]:
-        with uow:
-            result = uow.message_repo.all()
+        with batch_uow:
+            result = batch_uow.message_repo.all()
             missing_messages = [msg for msg in self._messages if msg not in result]
             test_name = le.TestName("Messages saved")
             if missing_messages:
@@ -611,7 +613,7 @@ def test_run_with_duplicate_job_names(
 def test_run_batches_in_parallel(
     postgres_db: sa.engine.Engine,
     postgres_db_uri: str,
-) -> None:
+) -> None:  # sourcery skip: move-assign
     admin_batch = le.AdminBatch(
         admin_engine_uri=le.DbUri(postgres_db_uri), admin_schema=le.SchemaName(None)
     )

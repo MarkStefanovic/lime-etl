@@ -5,7 +5,7 @@ import typing
 
 import lime_uow as lu
 
-from lime_etl.domain import job_logger, job_status, job_test_result, value_objects
+from lime_etl.domain import admin_unit_of_work, job_logger, job_status, job_test_result, value_objects
 
 __all__ = ("JobSpec",)
 
@@ -37,7 +37,8 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
     @abc.abstractmethod
     def run(
         self,
-        uow: UoW,
+        admin_uow: admin_unit_of_work.AdminUnitOfWork,
+        batch_uow: UoW,
         logger: job_logger.JobLogger,
     ) -> job_status.JobStatus:
         raise NotImplementedError
@@ -45,7 +46,8 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
     @abc.abstractmethod
     def test(
         self,
-        uow: UoW,
+        admin_uow: admin_unit_of_work.AdminUnitOfWork,
+        batch_uow: UoW,
         logger: job_logger.JobLogger,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError

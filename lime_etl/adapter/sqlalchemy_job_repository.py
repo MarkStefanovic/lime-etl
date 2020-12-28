@@ -6,13 +6,30 @@ from sqlalchemy.sql.expression import desc
 
 from lime_etl import domain
 
-
 __all__ = ("SqlAlchemyJobRepository",)
+
+from lime_etl.domain import job_status, value_objects
 
 
 class SqlAlchemyJobRepository(
     domain.JobRepository, lsa.SqlAlchemyRepository[domain.JobResultDTO]
 ):
+    def last_job_run_status(
+        self, /, job_name: value_objects.JobName
+    ) -> typing.Optional[job_status.JobStatus]:
+        # noinspection PyUnresolvedReferences,PyTypeChecker
+        jr: typing.Optional[domain.JobResultDTO] = (
+            self._session.query(domain.JobResultDTO)
+            .filter(domain.JobResultDTO.job_name.ilike(job_name.value))  # type: ignore
+            .filter(domain.JobResultDTO.skipped.is_(False))  # type: ignore
+            .order_by(desc(domain.JobResultDTO.ts))  # type: ignore
+            .first()
+        )
+        if jr is None:
+            return None
+        else:
+            return jr.to_domain().status
+
     def __init__(
         self,
         session: orm.Session,

@@ -346,6 +346,7 @@ def run_job_pre_handlers(
         raise Exception(f"The following dependencies failed to execute: {errs}")
     else:
         result = run_jobs_with_tests(
+            admin_uow=admin_uow,
             batch=batch,
             batch_uow=batch_uow,
             job=job,
@@ -360,6 +361,7 @@ def run_job_pre_handlers(
 
 def run_jobs_with_tests(
     *,
+    admin_uow: domain.AdminUnitOfWork,
     batch: domain.BatchSpec[UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
@@ -369,6 +371,7 @@ def run_jobs_with_tests(
     ts_adapter: domain.TimestampAdapter,
 ) -> domain.JobResult:
     result, execution_millis = run_job_with_retry(
+        admin_uow=admin_uow,
         batch=batch,
         batch_uow=batch_uow,
         job=job,
@@ -382,7 +385,7 @@ def run_jobs_with_tests(
         logger.log_info(f"[{job.job_name.value}] finished successfully.")
         logger.log_info(f"Running the tests for [{job.job_name.value}]...")
         test_start_time = datetime.datetime.now()
-        test_results = job.test(batch_uow, logger)
+        test_results = job.test(admin_uow, batch_uow, logger)
         test_execution_millis = int(
             (datetime.datetime.now() - test_start_time).total_seconds() * 1000
         )
@@ -437,6 +440,7 @@ def run_jobs_with_tests(
 
 def run_job_with_retry(
     *,
+    admin_uow: domain.AdminUnitOfWork,
     batch: domain.BatchSpec[UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
@@ -448,7 +452,7 @@ def run_job_with_retry(
 ) -> typing.Tuple[domain.JobStatus, domain.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(batch_uow, logger) or domain.JobStatus.success()
+        result = job.run(admin_uow, batch_uow, logger) or domain.JobStatus.success()
         end_time = ts_adapter.now()
         execution_millis = domain.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time
@@ -459,6 +463,7 @@ def run_job_with_retry(
         if max_retries > retries_so_far:
             logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
             return run_job_with_retry(
+                admin_uow=admin_uow,
                 batch=batch,
                 batch_uow=batch_uow,
                 job=job,
