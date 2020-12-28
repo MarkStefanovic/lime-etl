@@ -23,6 +23,14 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
         raise NotImplementedError
 
     @property
+    def min_seconds_between_refreshes(self) -> value_objects.MinSecondsBetweenRefreshes:
+        return value_objects.MinSecondsBetweenRefreshes(0)
+
+    @property
+    def min_seconds_between_tests(self) -> value_objects.MinSecondsBetweenTests:
+        return value_objects.MinSecondsBetweenTests(0)
+
+    @property
     def max_retries(self) -> value_objects.MaxRetries:
         return value_objects.MaxRetries(0)
 
@@ -51,10 +59,6 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
         logger: job_logger.JobLogger,
     ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
         raise NotImplementedError
-
-    @property
-    def min_seconds_between_refreshes(self) -> value_objects.MinSecondsBetweenRefreshes:
-        return value_objects.MinSecondsBetweenRefreshes(0)
 
     @property
     def timeout_seconds(self) -> value_objects.TimeoutSeconds:

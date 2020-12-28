@@ -23,6 +23,7 @@ __all__ = (
     "MaxProcesses",
     "MaxRetries",
     "MinSecondsBetweenRefreshes",
+    "MinSecondsBetweenTests",
     "NonEmptyStr",
     "Password",
     "PositiveInt",
@@ -333,6 +334,24 @@ class ResourceName(NonEmptyStr):
 
 
 class MinSecondsBetweenRefreshes(ValueObject):
+    def __init__(self, value: typing.Optional[int], /):
+        if value is None:
+            ...
+        elif isinstance(value, int):
+            if value < 0:
+                raise ValueError(
+                    f"If a {self.__class__.__name__} is provided, then it must be positive, but "
+                    f"got {value!r}."
+                )
+        else:
+            raise TypeError(
+                f"{self.__class__.__name__} expects an int, but got {value!r}"
+            )
+
+        super().__init__(value)
+
+
+class MinSecondsBetweenTests(ValueObject):
     def __init__(self, value: typing.Optional[int], /):
         if value is None:
             ...

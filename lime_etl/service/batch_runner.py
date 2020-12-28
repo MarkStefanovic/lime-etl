@@ -383,38 +383,70 @@ def run_jobs_with_tests(
     )
     if isinstance(result, domain.JobRanSuccessfully):
         logger.log_info(f"[{job.job_name.value}] finished successfully.")
-        logger.log_info(f"Running the tests for [{job.job_name.value}]...")
-        test_start_time = datetime.datetime.now()
-        test_results = job.test(admin_uow, batch_uow, logger)
-        test_execution_millis = int(
-            (datetime.datetime.now() - test_start_time).total_seconds() * 1000
-        )
 
-        if test_results:
-            tests_passed = sum(
-                1 for test_result in test_results if test_result.test_passed
-            )
-            tests_failed = sum(
-                1 for test_result in test_results if test_result.test_failed
-            )
-            logger.log_info(
-                f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
-            )
-            full_test_results = frozenset(
-                domain.JobTestResult(
-                    id=domain.UniqueId.generate(),
-                    job_id=job_id,
-                    test_name=test_result.test_name,
-                    test_success_or_failure=test_result.test_success_or_failure,
-                    execution_millis=domain.ExecutionMillis(test_execution_millis),
-                    execution_success_or_failure=domain.Result.success(),
-                    ts=start_time,
+        with admin_uow:
+            last_test_results = admin_uow.job_repo.latest_test_results(job.job_name)
+
+        if last_test_results:
+            latest_tests_passed = all(test.test_passed for test in last_test_results)
+            if latest_tests_passed:
+                latest_ts = max(test.ts for test in last_test_results)
+                seconds_since_last_test_run = int((typing.cast(datetime.datetime, ts_adapter.now().value) - typing.cast(datetime.datetime, latest_ts.value)).total_seconds())
+                if seconds_since_last_test_run > job.min_seconds_between_tests.value:
+                    skip_tests = False
+                    logger.log_info(
+                        f"The tests for [{job.job_name.value}] were last run {seconds_since_last_test_run} seconds "
+                        f"ago, and they are set to run every {job.min_seconds_between_tests.value}, so they will be "
+                        f"run again now."
                 )
-                for test_result in test_results
-            )
+                else:
+                    skip_tests = True
+                    logger.log_info(
+                        f"The tests for [{job.job_name.value}] were run {seconds_since_last_test_run} seconds ago, and "
+                        f"they are set to run every {job.min_seconds_between_tests.value} so they are not ready to be "
+                        f"run again."
+                    )
+            else:
+                skip_tests = False
+                logger.log_info(f"The latest tests for [{job.job_name.value}] did not pass, so they will be run now.")
         else:
-            logger.log_info("The job test method returned no results.")
-            full_test_results = frozenset()
+            skip_tests = False
+            logger.log_info(f"The tests for [{job.job_name.value}] have not been run before, so they will be run now.")
+
+        if skip_tests:
+            full_test_results: typing.FrozenSet[domain.JobTestResult] = frozenset()
+        else:
+            test_start_time = datetime.datetime.now()
+            test_results = job.test(admin_uow, batch_uow, logger)
+            test_execution_millis = int(
+                (datetime.datetime.now() - test_start_time).total_seconds() * 1000
+            )
+
+            if test_results:
+                tests_passed = sum(
+                    1 for test_result in test_results if test_result.test_passed
+                )
+                tests_failed = sum(
+                    1 for test_result in test_results if test_result.test_failed
+                )
+                logger.log_info(
+                    f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
+                )
+                full_test_results = frozenset(
+                    domain.JobTestResult(
+                        id=domain.UniqueId.generate(),
+                        job_id=job_id,
+                        test_name=test_result.test_name,
+                        test_success_or_failure=test_result.test_success_or_failure,
+                        execution_millis=domain.ExecutionMillis(test_execution_millis),
+                        execution_success_or_failure=domain.Result.success(),
+                        ts=start_time,
+                    )
+                    for test_result in test_results
+                )
+            else:
+                logger.log_info("The job test method returned no results.")
+                full_test_results = frozenset()
     elif isinstance(result, domain.JobFailed):
         logger.log_info(
             f"An exception occurred while running [{job.job_name.value}]: "
