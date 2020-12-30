@@ -1,9 +1,11 @@
 import datetime
+import os
 import typing
 
 import lime_uow as lu
 import pytest
 import sqlalchemy as sa
+import dotenv
 from sqlalchemy import orm
 
 import lime_etl as le
@@ -40,9 +42,7 @@ def session(session_factory: orm.sessionmaker) -> orm.Session:
     return session_factory()
 
 
-def static_timestamp_adapter(
-    dt: datetime.datetime, /
-) -> le.TimestampAdapter:
+def static_timestamp_adapter(dt: datetime.datetime, /) -> le.TimestampAdapter:
     return StaticTimestampAdapter(dt)
 
 
@@ -58,26 +58,35 @@ class StaticTimestampAdapter(le.TimestampAdapter):
         return le.Timestamp(self.dt)
 
 
-@pytest.fixture
-def postgres_db_uri() -> str:
-    user = "tester"
-    db_name = "testdb"
-    pwd = "abc123"
-    # host = "0.0.0.0"
-    host = "postgres"
-    port = 5432
-    return f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
+# @pytest.fixture
+# def postgres_db_uri() -> str:
+#     user = "tester"
+#     db_name = "testdb"
+#     pwd = "abc123"
+#     # host = "0.0.0.0"
+#     host = "postgres"
+#     port = 5432
+#     return f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
+
+
+# @pytest.fixture
+# def postgres_db_uri() -> str:
+#     dotenv.load_dotenv(dotenv.find_dotenv(".testenv"))
+#     uri = os.environ["TEST_DB_SQLALCHEMY_URI"]
+#     engine = sa.create_engine(
+#         postgres_db_uri, isolation_level="SERIALIZABLE", echo=True
+#     )
+#     with t
 
 
 @pytest.fixture(scope="function")
-def postgres_db(postgres_db_uri: str) -> typing.Generator[sa.engine.Engine, None, None]:
-    engine = sa.create_engine(
-        postgres_db_uri, isolation_level="SERIALIZABLE", echo=True
-    )
+def postgres_db() -> sa.engine.Engine:
+    dotenv.load_dotenv(dotenv.find_dotenv(".testenv"))
+    uri = os.environ["TEST_DB_SQLALCHEMY_URI"]
+    engine = sa.create_engine(uri, isolation_level="SERIALIZABLE", echo=True)
     le.admin_metadata.drop_all(engine)
     le.admin_metadata.create_all(engine)
-    yield engine
-    le.admin_metadata.drop_all(engine)
+    return engine
 
 
 @pytest.fixture(scope="function")

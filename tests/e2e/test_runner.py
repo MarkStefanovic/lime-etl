@@ -326,16 +326,16 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
         return MessageUOW(session_factory)
 
 
-@pytest.mark.docker
-def test_run_admin(postgres_db: sa.engine.Engine, postgres_db_uri: str) -> None:
+@pytest.mark.slow
+def test_run_admin(postgres_db: sa.engine.Engine) -> None:
     # Even though we're not using postgres_db in this test, we need to import it so the database is cleaned up afterwards.
     admin_schema = le.SchemaName(None)
     batch = le.AdminBatch(
-        admin_engine_uri=le.DbUri(postgres_db_uri),
+        admin_engine_uri=le.DbUri(str(postgres_db.url)),
         days_logs_to_keep=le.DaysToKeep(3),
         admin_schema=admin_schema,
     )
-    admin_uri = le.DbUri(postgres_db_uri)
+    admin_uri = le.DbUri(str(postgres_db.url))
     actual = le.run_batch(
         batch=batch, admin_engine_uri=admin_uri, admin_schema=admin_schema
     )
@@ -344,16 +344,15 @@ def test_run_admin(postgres_db: sa.engine.Engine, postgres_db_uri: str) -> None:
     assert len(actual.job_results) == 1
 
 
-@pytest.mark.docker
+@pytest.mark.slow
 def test_run_with_default_parameters_happy_path(
     postgres_db: sa.engine.Engine,
-    postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
     batch = MessageBatchHappyPath(session_factory=messages_session_factory)
     actual = le.run_batch(
         batch=batch,
-        admin_engine_uri=le.DbUri(postgres_db_uri),
+        admin_engine_uri=le.DbUri(str(postgres_db.url)),
         admin_schema=le.SchemaName(None),
     )
     expected = {
@@ -460,10 +459,12 @@ def test_run_with_default_parameters_happy_path(
     assert job_log_messages == {
         "Finished running [hello_world_job2].",
         "Finished running [hello_world_job].",
-        "Running the tests for [hello_world_job2]...",
-        "Running the tests for [hello_world_job]...",
         "Starting [hello_world_job2]...",
         "Starting [hello_world_job]...",
+        "The tests for [hello_world_job2] have not been run before, so they will be "
+        "run now.",
+        "The tests for [hello_world_job] have not been run before, so they will be "
+        "run now.",
         "[hello_world_job2] finished successfully.",
         "[hello_world_job] finished successfully.",
         "hello_world_job test results: tests_passed=1, tests_failed=0",
@@ -471,17 +472,16 @@ def test_run_with_default_parameters_happy_path(
     }
 
 
-@pytest.mark.docker
+@pytest.mark.slow
 def test_run_with_unresolved_dependencies(
     postgres_db: sa.engine.Engine,
-    postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
     batch = MessageBatchWithMissingDependencies(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
         le.run_batch(
             batch=batch,
-            admin_engine_uri=le.DbUri(postgres_db_uri),
+            admin_engine_uri=le.DbUri(str(postgres_db.url)),
             admin_schema=le.SchemaName(None),
         )
     assert (
@@ -529,17 +529,16 @@ def test_run_with_unresolved_dependencies(
     assert job_log_messages == set()
 
 
-@pytest.mark.docker
+@pytest.mark.slow
 def test_run_with_dependencies_out_of_order(
     postgres_db: sa.engine.Engine,
-    postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
     batch = MessageBatchWithDependenciesOutOfOrder(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
         le.run_batch(
             batch=batch,
-            admin_engine_uri=le.DbUri(postgres_db_uri),
+            admin_engine_uri=le.DbUri(str(postgres_db.url)),
             admin_schema=le.SchemaName(None),
         )
     assert (
@@ -569,17 +568,16 @@ def test_run_with_dependencies_out_of_order(
     assert job_log_messages == set()
 
 
-@pytest.mark.docker
+@pytest.mark.slow
 def test_run_with_duplicate_job_names(
     postgres_db: sa.engine.Engine,
-    postgres_db_uri: str,
     messages_session_factory: orm.sessionmaker,
 ) -> None:
     batch = MessageBatchWithDuplicateJobNames(messages_session_factory)
     with pytest.raises(le.exceptions.DuplicateJobNamesError) as e:
         le.run_batch(
             batch=batch,
-            admin_engine_uri=le.DbUri(postgres_db_uri),
+            admin_engine_uri=le.DbUri(str(postgres_db.url)),
             admin_schema=le.SchemaName(None),
         )
     assert (
@@ -609,19 +607,19 @@ def test_run_with_duplicate_job_names(
     assert job_log_messages == set()
 
 
-@pytest.mark.docker
+@pytest.mark.slow
 def test_run_batches_in_parallel(
     postgres_db: sa.engine.Engine,
-    postgres_db_uri: str,
 ) -> None:  # sourcery skip: move-assign
     admin_batch = le.AdminBatch(
-        admin_engine_uri=le.DbUri(postgres_db_uri), admin_schema=le.SchemaName(None)
+        admin_engine_uri=le.DbUri(str(postgres_db.url)),
+        admin_schema=le.SchemaName(None),
     )
     message_batch = PickleableMessageBatch(
-        db_uri=le.DbUri(postgres_db_uri),
+        db_uri=le.DbUri(str(postgres_db.url)),
     )
     results = le.run_batches_in_parallel(
-        admin_engine_uri=le.DbUri(postgres_db_uri),
+        admin_engine_uri=le.DbUri(str(postgres_db.url)),
         admin_schema=le.SchemaName(None),
         batches=[admin_batch, message_batch],  # type: ignore
         max_processes=le.MaxProcesses(3),

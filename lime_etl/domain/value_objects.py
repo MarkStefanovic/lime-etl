@@ -334,14 +334,11 @@ class ResourceName(NonEmptyStr):
 
 
 class MinSecondsBetweenRefreshes(ValueObject):
-    def __init__(self, value: typing.Optional[int], /):
-        if value is None:
-            ...
-        elif isinstance(value, int):
+    def __init__(self, value: int, /):
+        if isinstance(value, int):
             if value < 0:
                 raise ValueError(
-                    f"If a {self.__class__.__name__} is provided, then it must be positive, but "
-                    f"got {value!r}."
+                    f"If a {self.__class__.__name__} must be >= 0, but got {value!r}."
                 )
         else:
             raise TypeError(
@@ -352,14 +349,11 @@ class MinSecondsBetweenRefreshes(ValueObject):
 
 
 class MinSecondsBetweenTests(ValueObject):
-    def __init__(self, value: typing.Optional[int], /):
-        if value is None:
-            ...
-        elif isinstance(value, int):
+    def __init__(self, value: int, /):
+        if isinstance(value, int):
             if value < 0:
                 raise ValueError(
-                    f"If a {self.__class__.__name__} is provided, then it must be positive, but "
-                    f"got {value!r}."
+                    f"If a {self.__class__.__name__} must be >= 0, but got {value!r}."
                 )
         else:
             raise TypeError(

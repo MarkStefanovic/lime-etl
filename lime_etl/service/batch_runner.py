@@ -388,30 +388,32 @@ def run_jobs_with_tests(
             last_test_results = admin_uow.job_repo.latest_test_results(job.job_name)
 
         if last_test_results:
-            latest_tests_passed = all(test.test_passed for test in last_test_results)
-            if latest_tests_passed:
-                latest_ts = max(test.ts for test in last_test_results)
-                seconds_since_last_test_run = int((typing.cast(datetime.datetime, ts_adapter.now().value) - typing.cast(datetime.datetime, latest_ts.value)).total_seconds())
-                if seconds_since_last_test_run > job.min_seconds_between_tests.value:
-                    skip_tests = False
-                    logger.log_info(
-                        f"The tests for [{job.job_name.value}] were last run {seconds_since_last_test_run} seconds "
-                        f"ago, and they are set to run every {job.min_seconds_between_tests.value}, so they will be "
-                        f"run again now."
-                )
-                else:
-                    skip_tests = True
-                    logger.log_info(
-                        f"The tests for [{job.job_name.value}] were run {seconds_since_last_test_run} seconds ago, and "
-                        f"they are set to run every {job.min_seconds_between_tests.value} so they are not ready to be "
-                        f"run again."
-                    )
-            else:
+            last_test_time: datetime.datetime = max(
+                t.ts.value for t in last_test_results
+            )
+            now: datetime.datetime = ts_adapter.now().value
+            seconds_since_last_test_run: int = int(
+                (now - last_test_time).total_seconds()
+            )
+            if seconds_since_last_test_run >= job.min_seconds_between_tests.value:
                 skip_tests = False
-                logger.log_info(f"The latest tests for [{job.job_name.value}] did not pass, so they will be run now.")
+                logger.log_info(
+                    f"The tests for [{job.job_name.value}] were last run {seconds_since_last_test_run} seconds "
+                    f"ago, and they are set to run every {job.min_seconds_between_tests.value}, so they will "
+                    f"be run again now."
+                )
+            else:
+                skip_tests = True
+                logger.log_info(
+                    f"The tests for [{job.job_name.value}] were run {seconds_since_last_test_run} seconds ago, "
+                    f"and they are set to run every {job.min_seconds_between_tests.value} so they are not "
+                    f"ready to be run again."
+                )
         else:
             skip_tests = False
-            logger.log_info(f"The tests for [{job.job_name.value}] have not been run before, so they will be run now.")
+            logger.log_info(
+                f"The tests for [{job.job_name.value}] have not been run before, so they will be run now."
+            )
 
         if skip_tests:
             full_test_results: typing.FrozenSet[domain.JobTestResult] = frozenset()
