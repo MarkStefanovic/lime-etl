@@ -108,7 +108,7 @@ def run_batch(
         logger.log_info(f"Batch [{batch.batch_name}] finished.")
         return result
     except Exception as e:
-        logger.log_error(str(e))
+        logger.log_error(traceback.format_exc(10))
         end_time = ts_adapter.now()
         with admin_uow as uow:
             result = domain.BatchStatus(
@@ -204,7 +204,6 @@ def run_batch_or_fail(
                     )
                 except Exception as e:
                     millis = ts_adapter.get_elapsed_time(start_time)
-                    logger.log_error(str(traceback.format_exc(10)))
                     result = domain.JobResult(
                         id=job_id,
                         batch_id=batch.batch_id,
@@ -493,7 +492,6 @@ def run_job_with_retry(
         )
         return result, execution_millis
     except:
-        logger.log_error(traceback.format_exc(10))
         if max_retries > retries_so_far:
             logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
             return run_job_with_retry(
