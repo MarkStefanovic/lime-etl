@@ -204,13 +204,14 @@ def run_batch_or_fail(
                     )
                 except Exception as e:
                     millis = ts_adapter.get_elapsed_time(start_time)
+                    err_msg = f"{e}\n{traceback.format_exc(10)}"
                     result = domain.JobResult(
                         id=job_id,
                         batch_id=batch.batch_id,
                         job_name=job.job_name,
                         test_results=frozenset(),
                         execution_millis=millis,
-                        status=domain.JobStatus.failed(str(e)),
+                        status=domain.JobStatus.failed(err_msg),
                         ts=result.ts,
                     )
             else:
