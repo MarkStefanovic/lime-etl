@@ -501,9 +501,8 @@ def test_run_with_unresolved_dependencies(
     ), f"{len(result)} batches were added.  There should be 1 batch entry."
     row = result[0]
     assert row["execution_error_occurred"] == 1
-    assert (
-        row["execution_error_message"]
-        == "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]."
+    assert row["execution_error_message"].startswith(
+        "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]."
     )
     assert row["ts"] is not None
 

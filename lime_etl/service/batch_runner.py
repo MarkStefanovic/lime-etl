@@ -115,7 +115,7 @@ def run_batch(
                 id=batch.batch_id,
                 name=batch.batch_name,
                 job_results=frozenset(),
-                execution_success_or_failure=domain.Result.failure(str(e)),
+                execution_success_or_failure=domain.Result.failure(f"{e}\n{traceback.format_exc(10)}"),
                 execution_millis=domain.ExecutionMillis.calculate(
                     start_time=start_time, end_time=end_time
                 ),
