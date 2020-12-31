@@ -2,10 +2,9 @@ import datetime
 import os
 import typing
 
-import lime_uow as lu
+import dotenv
 import pytest
 import sqlalchemy as sa
-import dotenv
 from sqlalchemy import orm
 
 import lime_etl as le
@@ -58,27 +57,6 @@ class StaticTimestampAdapter(le.TimestampAdapter):
         return le.Timestamp(self.dt)
 
 
-# @pytest.fixture
-# def postgres_db_uri() -> str:
-#     user = "tester"
-#     db_name = "testdb"
-#     pwd = "abc123"
-#     # host = "0.0.0.0"
-#     host = "postgres"
-#     port = 5432
-#     return f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
-
-
-# @pytest.fixture
-# def postgres_db_uri() -> str:
-#     dotenv.load_dotenv(dotenv.find_dotenv(".testenv"))
-#     uri = os.environ["TEST_DB_SQLALCHEMY_URI"]
-#     engine = sa.create_engine(
-#         postgres_db_uri, isolation_level="SERIALIZABLE", echo=True
-#     )
-#     with t
-
-
 @pytest.fixture(scope="function")
 def postgres_db() -> sa.engine.Engine:
     dotenv.load_dotenv(dotenv.find_dotenv(".testenv"))
@@ -87,12 +65,3 @@ def postgres_db() -> sa.engine.Engine:
     le.admin_metadata.drop_all(engine)
     le.admin_metadata.create_all(engine)
     return engine
-
-
-@pytest.fixture(scope="function")
-def postgres_session(
-    postgres_db: sa.engine.Engine,
-) -> typing.Generator[orm.sessionmaker, None, None]:
-    le.start_mappers()
-    yield orm.sessionmaker(bind=postgres_db)()
-    orm.clear_mappers()
