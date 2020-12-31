@@ -10,7 +10,8 @@ __pycache__
 *.sqlite
 .pytest_cache
 
-poetry.lock
 TODO.md
 .sqlite
 .testenv
+poetry.toml
+poetry.lock
