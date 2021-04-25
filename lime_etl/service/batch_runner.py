@@ -115,7 +115,9 @@ def run_batch(
                 id=batch.batch_id,
                 name=batch.batch_name,
                 job_results=frozenset(),
-                execution_success_or_failure=domain.Result.failure(f"{e}\n{traceback.format_exc(10)}"),
+                execution_success_or_failure=domain.Result.failure(
+                    f"{e}\n{traceback.format_exc(10)}"
+                ),
                 execution_millis=domain.ExecutionMillis.calculate(
                     start_time=start_time, end_time=end_time
                 ),
@@ -152,7 +154,8 @@ def run_batch_or_fail(
             if r.job_name in job.dependencies
         ):
             logger.log_info(
-                f"All the dependencies for [{job.job_name.value}] were skipped or failed so the job has been skipped."
+                f"All the dependencies for [{job.job_name.value}] were skipped or failed so the "
+                f"job has been skipped."
             )
             result = domain.JobResult(
                 id=job_id,
@@ -216,9 +219,10 @@ def run_batch_or_fail(
                     )
             else:
                 logger.log_info(
-                    f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} seconds "
-                    f"ago and it is set to refresh every {job.min_seconds_between_refreshes.value} seconds, "
-                    f"so there is no need to refresh again."
+                    f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} "
+                    f"seconds ago and it is set to refresh every "
+                    f"{job.min_seconds_between_refreshes.value} seconds, so there is no need to "
+                    f"refresh again."
                 )
                 result = domain.JobResult(
                     id=job_id,
@@ -227,7 +231,8 @@ def run_batch_or_fail(
                     test_results=frozenset(),
                     execution_millis=domain.ExecutionMillis(0),
                     status=domain.JobStatus.skipped(
-                        f"The job ran {seconds_since_last_refresh:.0f} seconds ago, so it is not time yet."
+                        f"The job ran {seconds_since_last_refresh:.0f} seconds ago, so it is not "
+                        f"time yet."
                     ),
                     ts=start_time,
                 )
@@ -401,21 +406,22 @@ def run_jobs_with_tests(
                 if seconds_since_last_test_run >= job.min_seconds_between_tests.value:
                     skip_tests = False
                     logger.log_info(
-                        f"The tests for [{job.job_name.value}] were last run {seconds_since_last_test_run} seconds "
-                        f"ago, and they are set to run every {job.min_seconds_between_tests.value}, so they will "
-                        f"be run again now."
+                        f"The tests for [{job.job_name.value}] were last run "
+                        f"{seconds_since_last_test_run} seconds ago, and they are set to run every "
+                        f"{job.min_seconds_between_tests.value}, so they will be run again now."
                     )
                 else:
                     skip_tests = True
                     logger.log_info(
-                        f"The tests for [{job.job_name.value}] were run {seconds_since_last_test_run} seconds ago, "
-                        f"and they are set to run every {job.min_seconds_between_tests.value} so they are not "
-                        f"ready to be run again."
+                        f"The tests for [{job.job_name.value}] were run "
+                        f"{seconds_since_last_test_run} seconds ago, and they are set to run every "
+                        f"{job.min_seconds_between_tests.value} so they are not ready to be run again."
                     )
             else:
                 skip_tests = False
                 logger.log_info(
-                    f"The tests for [{job.job_name.value}] have not been run before, so they will be run now."
+                    f"The tests for [{job.job_name.value}] have not been run before, so they will "
+                    f"be run now."
                 )
 
             if skip_tests:
