@@ -51,14 +51,13 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
     ) -> job_status.JobStatus:
         raise NotImplementedError
 
-    @abc.abstractmethod
     def test(
         self,
         admin_uow: admin_unit_of_work.AdminUnitOfWork,
         batch_uow: UoW,
         logger: job_logger.JobLogger,
-    ) -> typing.Collection[job_test_result.SimpleJobTestResult]:
-        raise NotImplementedError
+    ) -> typing.List[job_test_result.SimpleJobTestResult]:
+        return []
 
     @property
     def timeout_seconds(self) -> value_objects.TimeoutSeconds:

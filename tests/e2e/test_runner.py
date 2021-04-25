@@ -64,7 +64,7 @@ class MessageUOW(le.UnitOfWork):
         return [lsa.SqlAlchemySession(self._session_factory)]
 
     def create_resources(
-        self, shared_resources: le.SharedResources
+        self, shared_resources: le.SharedResourceManager
     ) -> typing.Set[le.Resource[typing.Any]]:
         return {MessageRepo(shared_resources.get(lsa.SqlAlchemySession))}
 
@@ -245,8 +245,8 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_shared_resource(self) -> le.SharedResources:
-        return le.SharedResources(lsa.SqlAlchemySession(self._session_factory))
+    def create_shared_resource(self) -> le.SharedResourceManager:
+        return le.SharedResourceManager(lsa.SqlAlchemySession(self._session_factory))
 
     def create_uow(self) -> MessageUOW:
         return MessageUOW(self._session_factory)

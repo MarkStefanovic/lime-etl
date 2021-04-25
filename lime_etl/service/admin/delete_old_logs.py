@@ -53,7 +53,7 @@ class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
         admin_uow: domain.AdminUnitOfWork,
         batch_uow: domain.AdminUnitOfWork,
         logger: domain.JobLogger,
-    ) -> typing.Collection[domain.SimpleJobTestResult]:
+    ) -> typing.List[domain.SimpleJobTestResult]:
         with batch_uow:
             now = batch_uow.ts_adapter.now().value
             cutoff_date = datetime.datetime.combine(

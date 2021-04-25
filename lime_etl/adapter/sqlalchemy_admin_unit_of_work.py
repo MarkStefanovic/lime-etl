@@ -52,7 +52,7 @@ class SqlAlchemyAdminUnitOfWork(domain.AdminUnitOfWork):
         return self._ts_adapter
 
     def create_resources(
-        self, shared_resources: lu.SharedResources
+        self, shared_resources: lu.SharedResourceManager
     ) -> typing.Set[lu.Resource[typing.Any]]:
         session = shared_resources.get(sqlalchemy_admin_session.SqlAlchemyAdminSession)
         return {
