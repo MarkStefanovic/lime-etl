@@ -155,12 +155,18 @@ class JobSpecImpl(JobSpec[UoW]):
         return self._max_retries
 
     def on_execution_error(self, error_message: str) -> typing.Optional[JobSpec[UoW]]:
-        return self._on_execution_error
+        if self._on_execution_error is None:
+            return None
+        else:
+            return self._on_execution_error(error_message)
 
     def on_test_failure(
         self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
     ) -> typing.Optional[JobSpec[UoW]]:
-        return self._on_test_failure
+        if self._on_test_failure is None:
+            return None
+        else:
+            return self._on_test_failure(test_results)
 
     def run(
         self,
@@ -177,7 +183,7 @@ class JobSpecImpl(JobSpec[UoW]):
         if self._test is None:
             return []
         else:
-            return self._test(uow, logger)
+            return self._test(uow, logger) or []
 
     @property
     def timeout_seconds(self) -> value_objects.TimeoutSeconds:
@@ -185,8 +191,8 @@ class JobSpecImpl(JobSpec[UoW]):
 
 
 def create_job(
-    *,
     # fmt: off
+    *,
     name: str,
     run: typing.Callable[[UoW, job_logger.JobLogger], job_status.JobStatus],
     test: typing.Optional[
@@ -214,15 +220,18 @@ def create_job(
     min_seconds_between_tests: typing.Optional[int] = None,
     # fmt: on
 ) -> JobSpec[UoW]:
-    return JobSpecImpl(
-        name=name,
-        run=run,
-        test=test,
-        dependencies=dependencies,
-        on_execution_error=on_execution_error,
-        on_test_failure=on_test_failure,
-        timeout_seconds=timeout_seconds,
-        max_retries=max_retries,
-        min_seconds_between_refreshes=min_seconds_between_refreshes,
-        min_seconds_between_tests=min_seconds_between_tests,
+    return typing.cast(
+        JobSpec[UoW],
+        JobSpecImpl(
+            name=name,
+            run=run,
+            test=test,
+            dependencies=dependencies,
+            on_execution_error=on_execution_error,
+            on_test_failure=on_test_failure,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            min_seconds_between_refreshes=min_seconds_between_refreshes,
+            min_seconds_between_tests=min_seconds_between_tests,
+        ),
     )

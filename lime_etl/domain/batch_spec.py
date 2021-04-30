@@ -4,17 +4,18 @@ import typing
 
 import lime_uow as lu
 
-from lime_etl.domain import job_spec, value_objects
+from lime_etl.domain import cfg, job_spec, value_objects
 
 __all__ = (
     "BatchSpec",
     "create_batch",
 )
 
+Cfg = typing.TypeVar("Cfg", bound=cfg.Config)
 UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork)
 
 
-class BatchSpec(abc.ABC, typing.Generic[UoW]):
+class BatchSpec(abc.ABC, typing.Generic[Cfg, UoW]):
     @functools.cached_property
     def batch_id(self) -> value_objects.UniqueId:
         return value_objects.UniqueId.generate()
@@ -29,7 +30,7 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def create_uow(self, config: typing.Dict[str, typing.Any]) -> UoW:
+    def create_uow(self, config: Cfg) -> UoW:
         raise NotImplementedError
 
     @property
@@ -50,26 +51,32 @@ class BatchSpec(abc.ABC, typing.Generic[UoW]):
         if other.__class__ is self.__class__:
             return (
                 self.batch_name.value
-                == typing.cast(BatchSpec[typing.Any], other).batch_name.value
+                == typing.cast(
+                    BatchSpec[typing.Any, typing.Any], other
+                ).batch_name.value
             )
         else:
             return NotImplemented
 
 
-class BatchSpecImpl(BatchSpec[UoW]):
+class BatchSpecImpl(BatchSpec[Cfg, UoW]):
     def __init__(
         # fmt: off
         self,
         *,
         name: str,
-        create_jobs: typing.Callable[[UoW], typing.List[job_spec.JobSpec[UoW]]],
-        create_uow: typing.Callable[[typing.Dict[str, typing.Any]], UoW],
+        create_uow: typing.Callable[[Cfg], UoW],
+        jobs: typing.List[job_spec.JobSpec[UoW]],
+        runtime_jobs: typing.Optional[
+            typing.Callable[[UoW], typing.List[job_spec.JobSpec[UoW]]]
+        ],
         skip_tests: bool,
         timeout_seconds: typing.Optional[int],
         # fmt: on
     ):
         self._batch_name = value_objects.BatchName(name)
-        self._create_jobs = create_jobs
+        self._jobs = jobs
+        self._runtime_jobs = runtime_jobs
         self._create_uow = create_uow
         self._skip_tests = value_objects.Flag(skip_tests)
         self._timeout_seconds = value_objects.TimeoutSeconds(timeout_seconds)
@@ -83,9 +90,12 @@ class BatchSpecImpl(BatchSpec[UoW]):
         return self._batch_name
 
     def create_jobs(self, uow: UoW) -> typing.List[job_spec.JobSpec[UoW]]:
-        return self._create_jobs(uow)
+        if self._runtime_jobs:
+            return self._runtime_jobs(uow) + self._jobs
+        else:
+            return self._jobs
 
-    def create_uow(self, config: typing.Dict[str, typing.Any]) -> UoW:
+    def create_uow(self, config: Cfg) -> UoW:
         return self._create_uow(config)
 
     @property
@@ -101,16 +111,26 @@ def create_batch(
     # fmt: off
     *,
     name: str,
-    create_jobs: typing.Callable[[UoW], typing.List[job_spec.JobSpec[UoW]]],
-    create_uow: typing.Callable[[typing.Dict[str, typing.Any]], UoW],
+    jobs: typing.List[job_spec.JobSpec[UoW]],
+    create_uow: typing.Callable[[Cfg], UoW],
+    runtime_jobs: typing.Optional[
+        typing.Callable[
+            [UoW],
+            typing.List[job_spec.JobSpec[UoW]]
+        ]
+    ] = None,
     skip_tests: bool = False,
     timeout_seconds: typing.Optional[int] = None,
     # fmt: on
-) -> BatchSpecImpl[lu.UnitOfWork]:
-    return BatchSpecImpl(
-        name=name,
-        create_jobs=create_jobs,
-        create_uow=create_uow,
-        skip_tests=skip_tests,
-        timeout_seconds=timeout_seconds,
+) -> BatchSpec[Cfg, UoW]:
+    return typing.cast(
+        BatchSpec[Cfg, UoW],
+        BatchSpecImpl(
+            name=name,
+            jobs=jobs,
+            runtime_jobs=runtime_jobs,
+            create_uow=create_uow,
+            skip_tests=skip_tests,
+            timeout_seconds=timeout_seconds,
+        ),
     )

@@ -17,19 +17,20 @@ class DummyUoW(le.UnitOfWork):
         return []
 
 
-def test_minimal_create_batch_creates_valid_batch_spec():
+def test_minimal_create_batch_creates_valid_batch_spec() -> None:
     def dummy_job(name: str) -> le.JobSpec[DummyUoW]:
         return le.create_job(
             name=name,
             run=lambda uow, logger: le.JobStatus.success(),
         )
 
-    def create_dummy_jobs(uow: DummyUoW) -> typing.List[le.JobSpec[DummyUoW]]:
-        return [dummy_job(name) for name in ("dummy1", "dummy2")]
+    def create_dummy_runtime_jobs(_: DummyUoW) -> typing.List[le.JobSpec[DummyUoW]]:
+        return [dummy_job(name) for name in ("dummy3", "dummy4")]
 
-    batch = le.create_batch(
+    batch = le.create_batch(  # type: ignore
         name="test_batch",
-        create_jobs=create_dummy_jobs,
+        jobs=[dummy_job("dummy1"), dummy_job("dummy2")],
+        runtime_jobs=create_dummy_runtime_jobs,
         create_uow=lambda cfg: DummyUoW(cfg),
     )
     assert batch.batch_name == le.BatchName("test_batch")

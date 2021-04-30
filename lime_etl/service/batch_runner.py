@@ -17,32 +17,29 @@ __all__ = (
     "run_batches_in_parallel",
 )
 
+Cfg = typing.TypeVar("Cfg", bound=domain.Config, contravariant=True)
 UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, contravariant=True)
 
 
 def run_admin(
     *,
-    admin_engine_uri: domain.DbUri,
-    admin_schema: domain.SchemaName = domain.SchemaName("etl"),
-    days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
-    ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
+    config: domain.Config,
+    ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
     batch = admin.AdminBatch(
-        admin_engine_uri=admin_engine_uri,
-        admin_schema=admin_schema,
-        days_logs_to_keep=days_logs_to_keep,
+        config=config,
         ts_adapter=ts_adapter,
     )
     return batch.run()
 
 
 def run_batches_in_parallel(
-    batches: typing.Iterable[domain.BatchSpec[UoW]],
+    batches: typing.Iterable[domain.BatchSpec[Cfg, UoW]],
     admin_engine_uri: domain.DbUri,
     admin_schema: domain.SchemaName = domain.SchemaName("etl"),
     max_processes: domain.MaxProcesses = domain.MaxProcesses(None),
     timeout: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
-    ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
+    ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
 ) -> typing.List[domain.BatchStatus]:
     params = [(batch, admin_engine_uri, admin_schema, ts_adapter) for batch in batches]
     with multiprocessing.Pool(max_processes.value, maxtasksperchild=1) as pool:
@@ -51,16 +48,15 @@ def run_batches_in_parallel(
 
 
 def run_batch(
-    batch: domain.BatchSpec[UoW],
-    admin_engine_uri: domain.DbUri,
-    admin_schema: domain.SchemaName = domain.SchemaName("etl"),
-    ts_adapter: domain.TimestampAdapter = adapter.LocalTimestampAdapter(),
+    config: Cfg,
+    batch: domain.BatchSpec[Cfg, UoW],
+    ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
     start_time = ts_adapter.now()
 
-    admin_engine = sa.create_engine(admin_engine_uri.value)
+    admin_engine = sa.create_engine(config.admin_engine_uri.value)
     adapter.admin_metadata.create_all(bind=admin_engine)
-    adapter.admin_orm.set_schema(schema=admin_schema)
+    adapter.admin_orm.set_schema(schema=config.admin_schema)
     adapter.admin_orm.start_mappers()
     admin_session_factory = orm.sessionmaker(bind=admin_engine)
 
@@ -88,7 +84,7 @@ def run_batch(
             uow.save()
 
         logger.log_info(f"Staring batch [{batch.batch_name.value}]...")
-        batch_uow = batch.create_uow()
+        batch_uow = batch.create_uow(config)
         try:
             result = run_batch_or_fail(
                 admin_uow=admin_uow,
@@ -134,7 +130,7 @@ def run_batch(
 def run_batch_or_fail(
     *,
     admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
-    batch: domain.BatchSpec[UoW],
+    batch: domain.BatchSpec[Cfg, UoW],
     batch_uow: UoW,
     logger: domain.batch_logger.BatchLogger,
     start_time: domain.Timestamp,
@@ -259,7 +255,7 @@ def run_batch_or_fail(
 def run_job(
     *,
     admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
-    batch: domain.BatchSpec[UoW],
+    batch: domain.BatchSpec[Cfg, UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
     job_id: domain.UniqueId,
@@ -311,7 +307,7 @@ def run_job(
 def run_job_pre_handlers(
     *,
     admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
-    batch: domain.BatchSpec[UoW],
+    batch: domain.BatchSpec[Cfg, UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
     job_id: domain.UniqueId,
@@ -367,7 +363,7 @@ def run_job_pre_handlers(
 def run_jobs_with_tests(
     *,
     admin_uow: domain.AdminUnitOfWork,
-    batch: domain.BatchSpec[UoW],
+    batch: domain.BatchSpec[Cfg, UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
     job_id: domain.UniqueId,
@@ -428,7 +424,7 @@ def run_jobs_with_tests(
                 full_test_results = frozenset()
             else:
                 test_start_time = datetime.datetime.now()
-                test_results = job.test(admin_uow, batch_uow, logger)
+                test_results = job.test(batch_uow, logger)
                 test_execution_millis = int(
                     (datetime.datetime.now() - test_start_time).total_seconds() * 1000
                 )
@@ -484,7 +480,7 @@ def run_jobs_with_tests(
 def run_job_with_retry(
     *,
     admin_uow: domain.AdminUnitOfWork,
-    batch: domain.BatchSpec[UoW],
+    batch: domain.BatchSpec[Cfg, UoW],
     batch_uow: UoW,
     job: domain.JobSpec[UoW],
     logger: domain.JobLogger,
@@ -495,7 +491,7 @@ def run_job_with_retry(
 ) -> typing.Tuple[domain.JobStatus, domain.ExecutionMillis]:
     # noinspection PyBroadException
     try:
-        result = job.run(admin_uow, batch_uow, logger) or domain.JobStatus.success()
+        result = job.run(batch_uow, logger) or domain.JobStatus.success()
         end_time = ts_adapter.now()
         execution_millis = domain.ExecutionMillis.calculate(
             start_time=start_time, end_time=end_time

@@ -86,13 +86,12 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def run(
         self,
-        admin_uow: le.AdminUnitOfWork,
-        batch_uow: MessageUOW,
+        uow: MessageUOW,
         logger: le.JobLogger,
     ) -> le.JobStatus:
-        with batch_uow:
-            batch_uow.message_repo.add_all(self._messages)
-            batch_uow.save()
+        with uow:
+            uow.message_repo.add_all(self._messages)
+            uow.save()
         return le.JobStatus.success()
 
     @property
@@ -127,12 +126,11 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def test(
         self,
-        admin_uow: le.AdminUnitOfWork,
-        batch_uow: MessageUOW,
+        uow: MessageUOW,
         logger: le.JobLogger,
     ) -> typing.List[le.SimpleJobTestResult]:
-        with batch_uow:
-            result = batch_uow.message_repo.all()
+        with uow:
+            result = uow.message_repo.all()
             missing_messages = [msg for msg in self._messages if msg not in result]
             test_name = le.TestName("Messages saved")
             if missing_messages:
@@ -153,7 +151,7 @@ class MessageJob(le.JobSpec[MessageUOW]):
                 ]
 
 
-class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
+class MessageBatchHappyPath(le.BatchSpec[le.Config, MessageUOW]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -181,11 +179,11 @@ class MessageBatchHappyPath(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_uow(self) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> MessageUOW:
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
+class MessageBatchWithMissingDependencies(le.BatchSpec[le.Config, MessageUOW]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -213,11 +211,11 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_uow(self) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> MessageUOW:
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
+class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[le.Config, MessageUOW]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -248,11 +246,11 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[MessageUOW]):
     def create_shared_resource(self) -> le.SharedResourceManager:
         return le.SharedResourceManager(lsa.SqlAlchemySession(self._session_factory))
 
-    def create_uow(self) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> MessageUOW:
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
+class MessageBatchWithDuplicateJobNames(le.BatchSpec[le.Config, MessageUOW]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -280,11 +278,11 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_uow(self) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> MessageUOW:
         return MessageUOW(self._session_factory)
 
 
-class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
+class PickleableMessageBatch(le.BatchSpec[le.Config, MessageUOW]):
     def __init__(
         self,
         db_uri: le.DbUri,
@@ -317,7 +315,7 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
             ),
         ]
 
-    def create_uow(self) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> MessageUOW:
         engine = sa.create_engine(self._db_uri.value)
         meta.create_all(bind=engine)
         if not orm.base._is_mapped_class(Message):  # type: ignore
@@ -327,18 +325,12 @@ class PickleableMessageBatch(le.BatchSpec[MessageUOW]):
 
 
 @pytest.mark.slow
-def test_run_admin(postgres_db: sa.engine.Engine) -> None:
+def test_run_admin(postgres_db: sa.engine.Engine, test_config: le.Config) -> None:
     # Even though we're not using postgres_db in this test, we need to import it so the database is cleaned up afterwards.
     admin_schema = le.SchemaName(None)
-    batch = le.AdminBatch(
-        admin_engine_uri=le.DbUri(str(postgres_db.url)),
-        days_logs_to_keep=le.DaysToKeep(3),
-        admin_schema=admin_schema,
-    )
+    batch = le.AdminBatch(config=test_config)
     admin_uri = le.DbUri(str(postgres_db.url))
-    actual = le.run_batch(
-        batch=batch, admin_engine_uri=admin_uri, admin_schema=admin_schema
-    )
+    actual = le.run_batch(batch=batch, config=test_config)
     assert actual.running == le.Flag(False)
     assert actual.broken_jobs == frozenset()
     assert len(actual.job_results) == 1
@@ -348,13 +340,10 @@ def test_run_admin(postgres_db: sa.engine.Engine) -> None:
 def test_run_with_default_parameters_happy_path(
     postgres_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
+    test_config: le.Config,
 ) -> None:
     batch = MessageBatchHappyPath(session_factory=messages_session_factory)
-    actual = le.run_batch(
-        batch=batch,
-        admin_engine_uri=le.DbUri(str(postgres_db.url)),
-        admin_schema=le.SchemaName(None),
-    )
+    actual = le.run_batch(batch=batch, config=test_config)
     expected = {
         "execution_error_message": None,
         "execution_error_occurred": False,
@@ -476,14 +465,11 @@ def test_run_with_default_parameters_happy_path(
 def test_run_with_unresolved_dependencies(
     postgres_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
+    test_config: le.Config,
 ) -> None:
     batch = MessageBatchWithMissingDependencies(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
-        le.run_batch(
-            batch=batch,
-            admin_engine_uri=le.DbUri(str(postgres_db.url)),
-            admin_schema=le.SchemaName(None),
-        )
+        le.run_batch(batch=batch, config=test_config)
     assert (
         "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]"
         in str(e.value)
@@ -532,14 +518,11 @@ def test_run_with_unresolved_dependencies(
 def test_run_with_dependencies_out_of_order(
     postgres_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
+    test_config: le.Config,
 ) -> None:
     batch = MessageBatchWithDependenciesOutOfOrder(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
-        le.run_batch(
-            batch=batch,
-            admin_engine_uri=le.DbUri(str(postgres_db.url)),
-            admin_schema=le.SchemaName(None),
-        )
+        le.run_batch(batch=batch, config=test_config)
     assert (
         "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
         in str(e.value)
@@ -571,14 +554,11 @@ def test_run_with_dependencies_out_of_order(
 def test_run_with_duplicate_job_names(
     postgres_db: sa.engine.Engine,
     messages_session_factory: orm.sessionmaker,
+    test_config: le.Config,
 ) -> None:
     batch = MessageBatchWithDuplicateJobNames(messages_session_factory)
     with pytest.raises(le.exceptions.DuplicateJobNamesError) as e:
-        le.run_batch(
-            batch=batch,
-            admin_engine_uri=le.DbUri(str(postgres_db.url)),
-            admin_schema=le.SchemaName(None),
-        )
+        le.run_batch(batch=batch, config=test_config)
     assert (
         "The following job names were included more than once: [hello_world_job] (2)."
         in str(e.value)
@@ -609,11 +589,9 @@ def test_run_with_duplicate_job_names(
 @pytest.mark.slow
 def test_run_batches_in_parallel(
     postgres_db: sa.engine.Engine,
-) -> None:  # sourcery skip: move-assign
-    admin_batch = le.AdminBatch(
-        admin_engine_uri=le.DbUri(str(postgres_db.url)),
-        admin_schema=le.SchemaName(None),
-    )
+    test_config: le.Config,
+) -> None:
+    admin_batch = le.AdminBatch(config=test_config)
     message_batch = PickleableMessageBatch(
         db_uri=le.DbUri(str(postgres_db.url)),
     )

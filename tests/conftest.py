@@ -65,3 +65,14 @@ def postgres_db() -> sa.engine.Engine:
     le.admin_metadata.drop_all(engine)
     le.admin_metadata.create_all(engine)
     return engine
+
+
+class TestConfig(le.Config):
+    @property
+    def admin_engine_uri(self) -> le.DbUri:
+        return le.DbUri(os.environ["TEST_DB_SQLALCHEMY_URI"])
+
+
+@pytest.fixture(scope="session")
+def test_config() -> le.Config:
+    return TestConfig()
