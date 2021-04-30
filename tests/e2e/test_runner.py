@@ -38,9 +38,9 @@ class MessageRepo(AbstractMessageRepo, lsa.SqlAlchemyRepository[Message]):
     def __init__(self, session: orm.Session, /):
         super().__init__(session)
 
-    @classmethod
-    def interface(cls) -> typing.Type[AbstractMessageRepo]:
-        return AbstractMessageRepo
+    @staticmethod
+    def key() -> str:
+        return AbstractMessageRepo.__name__
 
 
 @pytest.fixture(scope="function")
@@ -66,7 +66,7 @@ class MessageUOW(le.UnitOfWork):
     def create_resources(
         self, shared_resources: le.SharedResourceManager
     ) -> typing.Set[le.Resource[typing.Any]]:
-        return {MessageRepo(shared_resources.get(lsa.SqlAlchemySession))}
+        return {MessageRepo(shared_resources.get(lsa.SqlAlchemySession).open())}
 
     @property
     def message_repo(self) -> AbstractMessageRepo:

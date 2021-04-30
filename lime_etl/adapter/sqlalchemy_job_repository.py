@@ -22,6 +22,10 @@ class SqlAlchemyJobRepository(
         self._ts_adapter = ts_adapter
         super().__init__(session)
 
+    @staticmethod
+    def key() -> str:
+        return domain.JobRepository.__name__
+
     def last_job_run_status(
         self, /, job_name: value_objects.JobName,
     ) -> typing.Optional[job_status.JobStatus]:
@@ -76,7 +80,3 @@ class SqlAlchemyJobRepository(
             return None
         else:
             return domain.Timestamp(jr.ts)
-
-    @classmethod
-    def interface(cls) -> typing.Type[domain.JobRepository]:
-        return domain.JobRepository

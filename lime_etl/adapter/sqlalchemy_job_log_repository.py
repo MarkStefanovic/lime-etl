@@ -22,6 +22,10 @@ class SqlAlchemyJobLogRepository(
         self._ts_adapter = ts_adapter
         super().__init__(session)
 
+    @staticmethod
+    def key() -> str:
+        return domain.JobLogRepository.__name__
+
     def delete_old_entries(self, days_to_keep: domain.DaysToKeep) -> int:
         ts = self._ts_adapter.now().value
         cutoff = ts - datetime.timedelta(days=days_to_keep.value)
@@ -34,7 +38,3 @@ class SqlAlchemyJobLogRepository(
     @property
     def entity_type(self) -> typing.Type[domain.JobLogEntryDTO]:
         return domain.JobLogEntryDTO
-
-    @classmethod
-    def interface(cls) -> typing.Type[domain.JobLogRepository]:
-        return domain.JobLogRepository

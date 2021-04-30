@@ -22,6 +22,10 @@ class SqlAlchemyBatchLogRepository(
         self._ts_adapter = ts_adapter
         super().__init__(session)
 
+    @staticmethod
+    def key() -> str:
+        return domain.BatchLogRepository.__name__
+
     def delete_old_entries(self, days_to_keep: domain.DaysToKeep) -> int:
         ts = self._ts_adapter.now().value
         cutoff = ts - datetime.timedelta(days=days_to_keep.value)
@@ -45,7 +49,3 @@ class SqlAlchemyBatchLogRepository(
             return None
         else:
             return earliest_entry.ts
-
-    @classmethod
-    def interface(cls) -> typing.Type[domain.BatchLogRepository]:
-        return domain.BatchLogRepository

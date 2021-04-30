@@ -49,9 +49,9 @@ class StaticTimestampAdapter(le.TimestampAdapter):
     def __init__(self, dt: datetime.datetime):
         self.dt = dt
 
-    @classmethod
-    def interface(cls) -> typing.Type[le.TimestampAdapter]:
-        return le.TimestampAdapter
+    @staticmethod
+    def key() -> str:
+        return le.TimestampAdapter.__name__
 
     def now(self) -> le.Timestamp:
         return le.Timestamp(self.dt)

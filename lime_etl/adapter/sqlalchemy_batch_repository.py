@@ -21,6 +21,10 @@ class SqlAlchemyBatchRepository(
         super().__init__(session)
         self._ts_adapter = ts_adapter
 
+    @staticmethod
+    def key() -> str:
+        return domain.BatchRepository.__name__
+
     def delete_old_entries(self, days_to_keep: domain.DaysToKeep, /) -> int:
         ts = self._ts_adapter.now().value
         cutoff: datetime.datetime = ts - datetime.timedelta(days=days_to_keep.value)
@@ -80,7 +84,3 @@ class SqlAlchemyBatchRepository(
             .offset(1)
             .first()
         )
-
-    @classmethod
-    def interface(cls) -> typing.Type[domain.BatchRepository]:
-        return domain.BatchRepository

@@ -53,7 +53,7 @@ class SqlAlchemyAdminUnitOfWork(domain.AdminUnitOfWork):
     def create_resources(
         self, shared_resources: lu.SharedResourceManager
     ) -> typing.Set[lu.Resource[typing.Any]]:
-        session = shared_resources.get(sqlalchemy_admin_session.SqlAlchemyAdminSession)
+        session = shared_resources.get(sqlalchemy_admin_session.SqlAlchemyAdminSession).open()
         return {
             sqlalchemy_batch_repository.SqlAlchemyBatchRepository(
                 session=session, ts_adapter=self._ts_adapter
