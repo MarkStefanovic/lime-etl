@@ -5,9 +5,17 @@ import typing
 
 import lime_uow as lu
 
-from lime_etl.domain import admin_unit_of_work, job_logger, job_status, job_test_result, value_objects
+from lime_etl.domain import (
+    job_logger,
+    job_status,
+    job_test_result,
+    value_objects,
+)
 
-__all__ = ("JobSpec",)
+__all__ = (
+    "JobSpec",
+    "create_job",
+)
 
 UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, contravariant=True)
 
@@ -45,16 +53,14 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
     @abc.abstractmethod
     def run(
         self,
-        admin_uow: admin_unit_of_work.AdminUnitOfWork,
-        batch_uow: UoW,
+        uow: UoW,
         logger: job_logger.JobLogger,
     ) -> job_status.JobStatus:
         raise NotImplementedError
 
     def test(
         self,
-        admin_uow: admin_unit_of_work.AdminUnitOfWork,
-        batch_uow: UoW,
+        uow: UoW,
         logger: job_logger.JobLogger,
     ) -> typing.List[job_test_result.SimpleJobTestResult]:
         return []
@@ -76,3 +82,147 @@ class JobSpec(abc.ABC, typing.Generic[UoW]):
             )
         else:
             return NotImplemented
+
+
+class JobSpecImpl(JobSpec[UoW]):
+    def __init__(
+        # fmt: off
+        self,
+        *,
+        name: str,
+        run: typing.Callable[
+            [UoW, job_logger.JobLogger],
+            job_status.JobStatus
+        ],
+        test: typing.Optional[
+            typing.Callable[
+                [UoW, job_logger.JobLogger],
+                typing.Optional[typing.List[job_test_result.SimpleJobTestResult]]
+            ]
+        ] = None,
+        dependencies: typing.Optional[typing.Set[str]] = None,
+        on_execution_error: typing.Optional[
+            typing.Callable[
+                [str],
+                typing.Optional[JobSpec[UoW]]
+            ]
+        ] = None,
+        on_test_failure: typing.Optional[
+            typing.Callable[
+                [typing.FrozenSet[job_test_result.JobTestResult]],
+                typing.Optional[JobSpec[UoW]]
+            ]
+        ] = None,
+        timeout_seconds: typing.Optional[int] = None,
+        max_retries: typing.Optional[int] = None,
+        min_seconds_between_refreshes: typing.Optional[int] = None,
+        min_seconds_between_tests: typing.Optional[int] = None,
+        # fmt: on
+    ):
+        self._name = value_objects.JobName(name)
+        self._run = run
+        self._test = test
+        self._dependencies = tuple(value_objects.JobName(d) for d in dependencies or [])
+        self._on_execution_error = on_execution_error
+        self._on_test_failure = on_test_failure
+        self._timeout_seconds = value_objects.TimeoutSeconds(timeout_seconds)
+        self._max_retries = value_objects.MaxRetries(int(max_retries or 0))
+        self._min_seconds_between_refreshes = value_objects.MinSecondsBetweenRefreshes(
+            int(min_seconds_between_refreshes or 0)
+        )
+        self._min_seconds_between_tests = value_objects.MinSecondsBetweenTests(
+            int(min_seconds_between_tests or 0)
+        )
+
+    @property
+    def dependencies(self) -> typing.Tuple[value_objects.JobName, ...]:
+        return self._dependencies
+
+    @property
+    def job_name(self) -> value_objects.JobName:
+        return self._name
+
+    @property
+    def min_seconds_between_refreshes(self) -> value_objects.MinSecondsBetweenRefreshes:
+        return self._min_seconds_between_refreshes
+
+    @property
+    def min_seconds_between_tests(self) -> value_objects.MinSecondsBetweenTests:
+        return self._min_seconds_between_tests
+
+    @property
+    def max_retries(self) -> value_objects.MaxRetries:
+        return self._max_retries
+
+    def on_execution_error(self, error_message: str) -> typing.Optional[JobSpec[UoW]]:
+        return self._on_execution_error
+
+    def on_test_failure(
+        self, test_results: typing.FrozenSet[job_test_result.JobTestResult]
+    ) -> typing.Optional[JobSpec[UoW]]:
+        return self._on_test_failure
+
+    def run(
+        self,
+        uow: UoW,
+        logger: job_logger.JobLogger,
+    ) -> job_status.JobStatus:
+        return self._run(uow, logger)
+
+    def test(
+        self,
+        uow: UoW,
+        logger: job_logger.JobLogger,
+    ) -> typing.List[job_test_result.SimpleJobTestResult]:
+        if self._test is None:
+            return []
+        else:
+            return self._test(uow, logger)
+
+    @property
+    def timeout_seconds(self) -> value_objects.TimeoutSeconds:
+        return self._timeout_seconds
+
+
+def create_job(
+    *,
+    # fmt: off
+    name: str,
+    run: typing.Callable[[UoW, job_logger.JobLogger], job_status.JobStatus],
+    test: typing.Optional[
+        typing.Callable[
+            [UoW, job_logger.JobLogger],
+            typing.Optional[typing.List[job_test_result.SimpleJobTestResult]]
+        ]
+    ] = None,
+    dependencies: typing.Optional[typing.Set[str]] = None,
+    on_execution_error: typing.Optional[
+        typing.Callable[
+            [str],
+            typing.Optional[JobSpec[UoW]]
+        ]
+    ] = None,
+    on_test_failure: typing.Optional[
+        typing.Callable[
+            [typing.FrozenSet[job_test_result.JobTestResult]],
+            typing.Optional[JobSpec[UoW]]
+        ]
+    ] = None,
+    timeout_seconds: typing.Optional[int] = None,
+    max_retries: typing.Optional[int] = None,
+    min_seconds_between_refreshes: typing.Optional[int] = None,
+    min_seconds_between_tests: typing.Optional[int] = None,
+    # fmt: on
+) -> JobSpec[UoW]:
+    return JobSpecImpl(
+        name=name,
+        run=run,
+        test=test,
+        dependencies=dependencies,
+        on_execution_error=on_execution_error,
+        on_test_failure=on_test_failure,
+        timeout_seconds=timeout_seconds,
+        max_retries=max_retries,
+        min_seconds_between_refreshes=min_seconds_between_refreshes,
+        min_seconds_between_tests=min_seconds_between_tests,
+    )
