@@ -9,6 +9,10 @@ __all__ = ("BatchRepository",)
 
 
 class BatchRepository(lu.Repository[batch_status.BatchStatusDTO], abc.ABC):
+    @staticmethod
+    def key() -> str:
+        return BatchRepository.__name__
+
     @abc.abstractmethod
     def delete_old_entries(self, days_to_keep: value_objects.DaysToKeep, /) -> int:
         raise NotImplementedError

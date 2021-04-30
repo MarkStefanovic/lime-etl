@@ -10,6 +10,10 @@ __all__ = ("JobRepository",)
 
 
 class JobRepository(lu.Repository[job_result.JobResultDTO], abc.ABC):
+    @staticmethod
+    def key() -> str:
+        return JobRepository.__name__
+
     @abc.abstractmethod
     def last_job_run_status(
         self, /, job_name: value_objects.JobName

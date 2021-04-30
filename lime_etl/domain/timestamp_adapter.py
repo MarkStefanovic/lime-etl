@@ -12,6 +12,10 @@ __all__ = (
 
 
 class TimestampAdapter(lu.Resource[None], abc.ABC):
+    @staticmethod
+    def key() -> str:
+        return TimestampAdapter.__name__
+
     @abc.abstractmethod
     def now(self) -> value_objects.Timestamp:
         raise NotImplementedError
@@ -25,9 +29,5 @@ class TimestampAdapter(lu.Resource[None], abc.ABC):
 
 
 class LocalTimestampAdapter(TimestampAdapter):
-    @staticmethod
-    def key() -> str:
-        return TimestampAdapter.__name__
-
     def now(self) -> value_objects.Timestamp:
         return value_objects.Timestamp(datetime.datetime.now())
