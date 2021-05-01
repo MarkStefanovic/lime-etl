@@ -1,3 +1,6 @@
+import dataclasses
+import pathlib
+import traceback
 import typing
 
 from lime_etl.domain import job_dependency_errors, value_objects
@@ -8,11 +11,13 @@ __all__ = (
     "BatchNotFound",
     "DependencyErrors",
     "DuplicateJobNamesError",
+    "ExceptionInfo",
     "InvalidBatch",
     "InvalidJobResult",
     "InvalidJobSpec",
     "InvalidResource",
     "MissingResourcesError",
+    "parse_exception",
 )
 
 
@@ -88,3 +93,42 @@ class MissingResourcesError(LimeETLException):
         )
         msg = f"The following jobs have missing resources: {messages}."
         super().__init__(msg)
+
+
+@dataclasses.dataclass(frozen=True)
+class Frame:
+    file: str
+    frame: str
+    line: int
+    code: str
+
+    def __str__(self) -> str:
+        return f"{self.file} [{self.line}]: {self.code}"
+
+
+@dataclasses.dataclass(frozen=True)
+class ExceptionInfo:
+    error_type: str
+    error_msg: str
+    frames: typing.List[Frame]
+
+    def text(self) -> str:
+        frames = "\n  > ".join(str(f) for f in self.frames)
+        return f"{self.error_type!s}: {self.error_msg!s}\n  > " + frames
+
+
+def parse_exception(e: Exception) -> ExceptionInfo:
+    frames = [
+        Frame(
+            file=pathlib.Path(f.filename).name,
+            frame=f.name,
+            line=f.lineno,
+            code=f.line,
+        )
+        for f in traceback.extract_tb(e.__traceback__)
+    ]
+    return ExceptionInfo(
+        error_type=type(e).__name__,
+        error_msg=str(e),
+        frames=frames,
+    )

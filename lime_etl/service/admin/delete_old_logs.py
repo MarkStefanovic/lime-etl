@@ -10,7 +10,9 @@ class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
     def __init__(
         self,
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
-        min_seconds_between_runs: domain.MinSecondsBetweenRefreshes = domain.MinSecondsBetweenRefreshes(0),
+        min_seconds_between_runs: domain.MinSecondsBetweenRefreshes = domain.MinSecondsBetweenRefreshes(
+            0
+        ),
     ):
         self._days_logs_to_keep = days_logs_to_keep
         self._min_seconds_between_runs = min_seconds_between_runs
@@ -30,17 +32,17 @@ class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
     ) -> domain.JobStatus:
         with uow:
             uow.batch_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
-            logger.log_info(
+            logger.info(
                 f"Deleted batch log entries older than {self._days_logs_to_keep.value} days old."
             )
 
             uow.job_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
-            logger.log_info(
+            logger.info(
                 f"Deleted job log entries older than {self._days_logs_to_keep.value} days old."
             )
 
             uow.batch_repo.delete_old_entries(self._days_logs_to_keep)
-            logger.log_info(
+            logger.info(
                 f"Deleted batch results older than {self._days_logs_to_keep.value} days old."
             )
             uow.save()

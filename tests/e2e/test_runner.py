@@ -19,6 +19,7 @@ messages_table = sa.Table(
     meta,
     sa.Column("id", sa.Integer, autoincrement=True, primary_key=True),
     sa.Column("message", sa.Text, nullable=False),
+    schema="etl",
 )
 
 
@@ -29,6 +30,10 @@ class Message:
 
 
 class AbstractMessageRepo(le.Repository[Message], abc.ABC):
+    @staticmethod
+    def key() -> str:
+        return AbstractMessageRepo.__name__
+
     @property
     def entity_type(self) -> typing.Type[Message]:
         return Message
@@ -52,7 +57,7 @@ def messages_session_factory(
         orm.mapper(Message, messages_table)
     meta.create_all(bind=postgres_db)
     yield orm.sessionmaker(bind=postgres_db)
-    meta.drop_all(bind=postgres_db)
+    # meta.drop_all(bind=postgres_db)
 
 
 class MessageUOW(le.UnitOfWork):
@@ -327,10 +332,8 @@ class PickleableMessageBatch(le.BatchSpec[le.Config, MessageUOW]):
 @pytest.mark.slow
 def test_run_admin(postgres_db: sa.engine.Engine, test_config: le.Config) -> None:
     # Even though we're not using postgres_db in this test, we need to import it so the database is cleaned up afterwards.
-    admin_schema = le.SchemaName(None)
     batch = le.AdminBatch(config=test_config)
-    admin_uri = le.DbUri(str(postgres_db.url))
-    actual = le.run_batch(batch=batch, config=test_config)
+    actual = le.run_batch(batch=batch, config=test_config, log_to_console=True)
     assert actual.running == le.Flag(False)
     assert actual.broken_jobs == frozenset()
     assert len(actual.job_results) == 1
@@ -407,7 +410,7 @@ def test_run_with_default_parameters_happy_path(
 
     sql = """
         SELECT execution_error_occurred, execution_error_message, ts
-        FROM batches
+        FROM etl.batches
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:
@@ -423,7 +426,7 @@ def test_run_with_default_parameters_happy_path(
 
     sql = """
         SELECT job_name, execution_millis, execution_error_occurred, execution_error_message, ts
-        FROM jobs
+        FROM etl.jobs
         ORDER BY ts
     """
     with postgres_db.begin() as con:
@@ -439,7 +442,7 @@ def test_run_with_default_parameters_happy_path(
 
     sql = """
         SELECT batch_id, job_id, log_level, message, ts
-        FROM job_log
+        FROM etl.job_log
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:
@@ -477,7 +480,7 @@ def test_run_with_unresolved_dependencies(
 
     sql = """
         SELECT execution_error_occurred, execution_error_message, ts
-        FROM batches
+        FROM etl.batches
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:
@@ -487,14 +490,16 @@ def test_run_with_unresolved_dependencies(
     ), f"{len(result)} batches were added.  There should be 1 batch entry."
     row = result[0]
     assert row["execution_error_occurred"] == 1
-    assert row["execution_error_message"].startswith(
-        "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]."
+    expected_msg = "DependencyErrors: [hello_world_job2] has the following unresolved dependencies:"
+    assert row["execution_error_message"].startswith(expected_msg), (
+        f"Expected the execution_error_message to start with {expected_msg!r}, but got "
+        f"{row['execution_error_message']!r}."
     )
     assert row["ts"] is not None
 
     sql = """
         SELECT job_name, execution_millis, execution_error_occurred, execution_error_message, ts
-        FROM jobs
+        FROM etl.jobs
         ORDER BY ts
     """
     with postgres_db.begin() as con:
@@ -505,7 +510,7 @@ def test_run_with_unresolved_dependencies(
     )
     sql = """
         SELECT batch_id, job_id, log_level, message, ts
-        FROM job_log
+        FROM etl.job_log
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:
@@ -530,7 +535,7 @@ def test_run_with_dependencies_out_of_order(
 
     sql = """
         SELECT job_name, execution_millis, execution_error_occurred, execution_error_message, ts
-        FROM jobs
+        FROM etl.jobs
         ORDER BY ts
     """
     with postgres_db.begin() as con:
@@ -541,7 +546,7 @@ def test_run_with_dependencies_out_of_order(
     )
     sql = """
         SELECT batch_id, job_id, log_level, message, ts
-        FROM job_log
+        FROM etl.job_log
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:
@@ -566,7 +571,7 @@ def test_run_with_duplicate_job_names(
 
     sql = """
         SELECT job_name, execution_millis, execution_error_occurred, execution_error_message, ts
-        FROM jobs
+        FROM etl.jobs
         ORDER BY ts
     """
     with postgres_db.begin() as con:
@@ -577,7 +582,7 @@ def test_run_with_duplicate_job_names(
     )
     sql = """
         SELECT batch_id, job_id, log_level, message, ts
-        FROM job_log
+        FROM etl.job_log
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:
@@ -596,8 +601,7 @@ def test_run_batches_in_parallel(
         db_uri=le.DbUri(str(postgres_db.url)),
     )
     results = le.run_batches_in_parallel(
-        admin_engine_uri=le.DbUri(str(postgres_db.url)),
-        admin_schema=le.SchemaName(None),
+        config=test_config,
         batches=[admin_batch, message_batch],  # type: ignore
         max_processes=le.MaxProcesses(3),
         timeout=le.TimeoutSeconds(10),
@@ -706,7 +710,7 @@ def test_run_batches_in_parallel(
 
     sql = """
         SELECT execution_error_occurred, execution_error_message, ts
-        FROM batches
+        FROM etl.batches
         ORDER BY ts DESC
     """
     with postgres_db.begin() as con:

@@ -23,7 +23,7 @@ def test_batch_logger_log_error(
     in_memory_db: sa.engine.Engine,
     batch_logger: le.BatchLogger,
 ) -> None:
-    batch_logger.log_error("Test Message")
+    batch_logger.error("Test Message")
     with in_memory_db.begin() as con:
         actual = con.execute(sa.text("SELECT * FROM batch_log")).fetchall()
     assert len(actual) == 1
@@ -37,7 +37,7 @@ def test_batch_logger_log_info(
     in_memory_db: sa.engine.Engine,
     batch_logger: le.BatchLogger,
 ) -> None:
-    batch_logger.log_info("Test Message")
+    batch_logger.info("Test Message")
     with in_memory_db.begin() as con:
         actual = con.execute(sa.text("SELECT * FROM batch_log")).fetchall()
     assert len(actual) == 1

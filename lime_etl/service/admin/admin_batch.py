@@ -18,10 +18,12 @@ class AdminBatch(domain.BatchSpec[domain.Config, domain.AdminUnitOfWork]):
             12 * 60 * 60
         ),
         ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
+        log_to_console: bool = False,
     ):
         self._config = config
         self._min_seconds_between_runs = min_seconds_between_runs
         self._ts_adapter = ts_adapter
+        self._log_to_console = log_to_console
 
     @property
     def batch_name(self) -> domain.BatchName:
@@ -51,5 +53,5 @@ class AdminBatch(domain.BatchSpec[domain.Config, domain.AdminUnitOfWork]):
         return batch_runner.run_batch(
             config=self._config,
             batch=self,
-            ts_adapter=self._ts_adapter,
+            log_to_console=self._log_to_console,
         )

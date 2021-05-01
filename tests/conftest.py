@@ -23,6 +23,8 @@ def in_memory_db(in_memory_db_uri: str) -> sa.engine.Engine:
         poolclass=sa.pool.StaticPool,
         echo=True,
     )
+    with engine.begin() as con:
+        con.execute("ATTACH ':memory:' as etl")
     le.admin_metadata.create_all(engine)
     return engine
 
@@ -57,12 +59,30 @@ class StaticTimestampAdapter(le.TimestampAdapter):
         return le.Timestamp(self.dt)
 
 
+def drop_tables(engine: sa.engine.Engine, *tables: str) -> None:
+    with engine.begin() as con:
+        for table in tables:
+            try:
+                con.execute(f"DROP TABLE etl.{table} CASCADE")
+            except:
+                pass
+
+
 @pytest.fixture(scope="function")
 def postgres_db() -> sa.engine.Engine:
     dotenv.load_dotenv(dotenv.find_dotenv(".testenv"))
     uri = os.environ["TEST_DB_SQLALCHEMY_URI"]
     engine = sa.create_engine(uri, isolation_level="SERIALIZABLE", echo=True)
-    le.admin_metadata.drop_all(engine)
+    drop_tables(
+        engine,
+        "batch_log",
+        "job_log",
+        "batches",
+        "job_test_results",
+        "jobs",
+    )
+    le.set_schema(le.SchemaName("etl"))
+    # le.admin_metadata.drop_all(engine)
     le.admin_metadata.create_all(engine)
     return engine
 

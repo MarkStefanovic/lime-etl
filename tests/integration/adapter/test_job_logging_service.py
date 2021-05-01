@@ -22,7 +22,7 @@ def test_job_logger_log_error(
     in_memory_db: sa.engine.Engine,
     job_logger: le.SqlAlchemyJobLogger,
 ) -> None:
-    job_logger.log_error("Test Message")
+    job_logger.error("Test Message")
     with in_memory_db.begin() as con:
         actual = con.execute(sa.text("SELECT * FROM job_log")).fetchall()
     assert len(actual) == 1
@@ -37,7 +37,7 @@ def test_job_logger_log_info(
     in_memory_db: sa.engine.Engine,
     job_logger: le.SqlAlchemyJobLogger,
 ) -> None:
-    job_logger.log_info("Test Message")
+    job_logger.info("Test Message")
     with in_memory_db.begin() as con:
         actual = con.execute(sa.text("SELECT * FROM job_log")).fetchall()
     assert len(actual) == 1

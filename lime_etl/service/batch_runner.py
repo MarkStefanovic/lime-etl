@@ -1,6 +1,7 @@
 import datetime
 import itertools
 import multiprocessing
+import sys
 import traceback
 import typing
 
@@ -35,21 +36,21 @@ def run_admin(
 
 def run_batches_in_parallel(
     batches: typing.Iterable[domain.BatchSpec[Cfg, UoW]],
-    admin_engine_uri: domain.DbUri,
-    admin_schema: domain.SchemaName = domain.SchemaName("etl"),
+    config: domain.Config,
     max_processes: domain.MaxProcesses = domain.MaxProcesses(None),
     timeout: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
-    ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
+    log_to_console: bool = False,
 ) -> typing.List[domain.BatchStatus]:
-    params = [(batch, admin_engine_uri, admin_schema, ts_adapter) for batch in batches]
+    params = [(batch, config, log_to_console) for batch in batches]
     with multiprocessing.Pool(max_processes.value, maxtasksperchild=1) as pool:
         future = pool.starmap_async(run_batch, params)
         return future.get(timeout.value)
 
 
 def run_batch(
-    config: Cfg,
     batch: domain.BatchSpec[Cfg, UoW],
+    config: Cfg,
+    log_to_console: bool = False,
     ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
     start_time = ts_adapter.now()
@@ -64,6 +65,7 @@ def run_batch(
         batch_id=batch.batch_id,
         session=admin_session_factory(),
         ts_adapter=ts_adapter,
+        log_to_console=log_to_console,
     )
     admin_uow: domain.AdminUnitOfWork = adapter.SqlAlchemyAdminUnitOfWork(
         session_factory=admin_session_factory, ts_adapter=ts_adapter
@@ -83,7 +85,7 @@ def run_batch(
             uow.batch_repo.add(new_batch.to_dto())
             uow.save()
 
-        logger.log_info(f"Staring batch [{batch.batch_name.value}]...")
+        logger.info(f"Staring batch [{batch.batch_name.value}]...")
         batch_uow = batch.create_uow(config)
         try:
             result = run_batch_or_fail(
@@ -101,19 +103,18 @@ def run_batch(
             uow.batch_repo.update(result.to_dto())
             uow.save()
 
-        logger.log_info(f"Batch [{batch.batch_name}] finished.")
+        logger.info(f"Batch [{batch.batch_name}] finished.")
         return result
     except Exception as e:
-        logger.log_error(traceback.format_exc(10))
+        err_msg = domain.exceptions.parse_exception(e).text()
+        logger.error(err_msg)
         end_time = ts_adapter.now()
         with admin_uow as uow:
             result = domain.BatchStatus(
                 id=batch.batch_id,
                 name=batch.batch_name,
                 job_results=frozenset(),
-                execution_success_or_failure=domain.Result.failure(
-                    f"{e}\n{traceback.format_exc(10)}"
-                ),
+                execution_success_or_failure=domain.Result.failure(err_msg),
                 execution_millis=domain.ExecutionMillis.calculate(
                     start_time=start_time, end_time=end_time
                 ),
@@ -149,7 +150,7 @@ def run_batch_or_fail(
             for r in job_results
             if r.job_name in job.dependencies
         ):
-            logger.log_info(
+            logger.info(
                 f"All the dependencies for [{job.job_name.value}] were skipped or failed so the "
                 f"job has been skipped."
             )
@@ -214,7 +215,7 @@ def run_batch_or_fail(
                         ts=result.ts,
                     )
             else:
-                logger.log_info(
+                logger.info(
                     f"[{job.job_name.value}] was run successfully {seconds_since_last_refresh:.0f} "
                     f"seconds ago and it is set to refresh every "
                     f"{job.min_seconds_between_refreshes.value} seconds, so there is no need to "
@@ -314,7 +315,7 @@ def run_job_pre_handlers(
     logger: domain.JobLogger,
     ts_adapter: domain.TimestampAdapter,
 ) -> domain.JobResult:
-    logger.log_info(f"Starting [{job.job_name.value}]...")
+    logger.info(f"Starting [{job.job_name.value}]...")
     start_time = ts_adapter.now()
     with admin_uow as uow:
         current_batch = uow.batch_repo.get(batch.batch_id.value).to_domain()
@@ -356,7 +357,7 @@ def run_job_pre_handlers(
             start_time=start_time,
             ts_adapter=ts_adapter,
         )
-        logger.log_info(f"Finished running [{job.job_name.value}].")
+        logger.info(f"Finished running [{job.job_name.value}].")
         return result
 
 
@@ -383,7 +384,7 @@ def run_jobs_with_tests(
         ts_adapter=ts_adapter,
     )
     if isinstance(result, domain.JobRanSuccessfully):
-        logger.log_info(f"[{job.job_name.value}] finished successfully.")
+        logger.info(f"[{job.job_name.value}] finished successfully.")
 
         if batch.skip_tests.value:
             full_test_results: typing.FrozenSet[domain.JobTestResult] = frozenset()
@@ -401,21 +402,21 @@ def run_jobs_with_tests(
                 )
                 if seconds_since_last_test_run >= job.min_seconds_between_tests.value:
                     skip_tests = False
-                    logger.log_info(
+                    logger.info(
                         f"The tests for [{job.job_name.value}] were last run "
                         f"{seconds_since_last_test_run} seconds ago, and they are set to run every "
                         f"{job.min_seconds_between_tests.value}, so they will be run again now."
                     )
                 else:
                     skip_tests = True
-                    logger.log_info(
+                    logger.info(
                         f"The tests for [{job.job_name.value}] were run "
                         f"{seconds_since_last_test_run} seconds ago, and they are set to run every "
                         f"{job.min_seconds_between_tests.value} so they are not ready to be run again."
                     )
             else:
                 skip_tests = False
-                logger.log_info(
+                logger.info(
                     f"The tests for [{job.job_name.value}] have not been run before, so they will "
                     f"be run now."
                 )
@@ -436,7 +437,7 @@ def run_jobs_with_tests(
                     tests_failed = sum(
                         1 for test_result in test_results if test_result.test_failed
                     )
-                    logger.log_info(
+                    logger.info(
                         f"{job.job_name.value} test results: {tests_passed=}, {tests_failed=}"
                     )
                     full_test_results = frozenset(
@@ -445,23 +446,25 @@ def run_jobs_with_tests(
                             job_id=job_id,
                             test_name=test_result.test_name,
                             test_success_or_failure=test_result.test_success_or_failure,
-                            execution_millis=domain.ExecutionMillis(test_execution_millis),
+                            execution_millis=domain.ExecutionMillis(
+                                test_execution_millis
+                            ),
                             execution_success_or_failure=domain.Result.success(),
                             ts=start_time,
                         )
                         for test_result in test_results
                     )
                 else:
-                    logger.log_info("The job test method returned no results.")
+                    logger.info("The job test method returned no results.")
                     full_test_results = frozenset()
     elif isinstance(result, domain.JobFailed):
-        logger.log_info(
+        logger.info(
             f"An exception occurred while running [{job.job_name.value}]: "
             f"{result.error_message}."
         )
         full_test_results = frozenset()
     elif isinstance(result, domain.JobSkipped):
-        logger.log_info(f"[{job.job_name.value}] was skipped.")
+        logger.info(f"[{job.job_name.value}] was skipped.")
         full_test_results = frozenset()
     else:
         raise TypeError(f"Unrecognized job result: {result!r}")
@@ -499,7 +502,7 @@ def run_job_with_retry(
         return result, execution_millis
     except:
         if max_retries > retries_so_far:
-            logger.log_info(f"Running retry {retries_so_far} of {max_retries}...")
+            logger.info(f"Running retry {retries_so_far} of {max_retries}...")
             return run_job_with_retry(
                 admin_uow=admin_uow,
                 batch=batch,
@@ -512,9 +515,7 @@ def run_job_with_retry(
                 ts_adapter=ts_adapter,
             )
         else:
-            logger.log_info(
-                f"[{job.job_name.value}] failed after {max_retries} retries."
-            )
+            logger.info(f"[{job.job_name.value}] failed after {max_retries} retries.")
             raise
 
 

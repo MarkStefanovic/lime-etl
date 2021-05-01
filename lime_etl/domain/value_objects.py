@@ -469,10 +469,13 @@ class Password(ValueObject):
         return "*" * 10
 
 
-class LogLevelOption(enum.Enum):
-    Debug = 1
-    Info = 2
-    Error = 3
+class LogLevelOption(str, enum.Enum):
+    Debug = "DEBUG"
+    Info = "INFO"
+    Error = "ERROR"
+
+    def __str__(self) -> str:
+        return str.__str__(self)
 
 
 class LogLevel(ValueObject):

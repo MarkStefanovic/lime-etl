@@ -4,17 +4,29 @@ import lime_etl as le
 
 
 class DummyUoW(le.UnitOfWork):
-    def __init__(self, config: typing.Dict[str, typing.Any]):
+    def __init__(self, config: le.Config):
         super().__init__()
         self._config = config
 
     def create_resources(
         self, /, shared_resources: le.SharedResourceManager
     ) -> typing.List[le.Resource[typing.Any]]:
-        return []
+        return [DummyResource("test_resource_1")]
 
     def create_shared_resources(self) -> typing.List[le.Resource[typing.Any]]:
-        return []
+        return [DummyResource("test_shared_resource_1")]
+
+
+class DummyResource(le.Resource[str]):
+    def __init__(self, value: str):
+        self.value = value
+
+    def open(self, **kwargs: typing.Dict[str, typing.Any]) -> str:
+        return self.value
+
+    @staticmethod
+    def key() -> str:
+        return DummyResource.__name__
 
 
 def test_minimal_create_batch_creates_valid_batch_spec() -> None:
