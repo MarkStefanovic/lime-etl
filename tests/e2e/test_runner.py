@@ -333,7 +333,7 @@ class PickleableMessageBatch(le.BatchSpec[le.Config, MessageUOW]):
 def test_run_admin(postgres_db: sa.engine.Engine, test_config: le.Config) -> None:
     # Even though we're not using postgres_db in this test, we need to import it so the database is cleaned up afterwards.
     batch = le.AdminBatch(config=test_config)
-    actual = le.run_batch(batch=batch, config=test_config, log_to_console=True)
+    actual = batch.run(config=test_config, log_to_console=True)
     assert actual.running == le.Flag(False)
     assert actual.broken_jobs == frozenset()
     assert len(actual.job_results) == 1
@@ -346,7 +346,7 @@ def test_run_with_default_parameters_happy_path(
     test_config: le.Config,
 ) -> None:
     batch = MessageBatchHappyPath(session_factory=messages_session_factory)
-    actual = le.run_batch(batch=batch, config=test_config)
+    actual = batch.run(config=test_config)
     expected = {
         "execution_error_message": None,
         "execution_error_occurred": False,
@@ -472,7 +472,7 @@ def test_run_with_unresolved_dependencies(
 ) -> None:
     batch = MessageBatchWithMissingDependencies(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
-        le.run_batch(batch=batch, config=test_config)
+        batch.run(config=test_config)
     assert (
         "[hello_world_job2] has the following unresolved dependencies: [hello_world_job3]"
         in str(e.value)
@@ -527,7 +527,7 @@ def test_run_with_dependencies_out_of_order(
 ) -> None:
     batch = MessageBatchWithDependenciesOutOfOrder(messages_session_factory)
     with pytest.raises(le.exceptions.DependencyErrors) as e:
-        le.run_batch(batch=batch, config=test_config)
+        batch.run(config=test_config)
     assert (
         "[hello_world_job2] depends on the following jobs which come after it: [hello_world_job]."
         in str(e.value)
@@ -563,7 +563,7 @@ def test_run_with_duplicate_job_names(
 ) -> None:
     batch = MessageBatchWithDuplicateJobNames(messages_session_factory)
     with pytest.raises(le.exceptions.DuplicateJobNamesError) as e:
-        le.run_batch(batch=batch, config=test_config)
+        batch.run(config=test_config)
     assert (
         "The following job names were included more than once: [hello_world_job] (2)."
         in str(e.value)

@@ -4,7 +4,13 @@ import typing
 
 import lime_uow as lu
 
-from lime_etl.domain import cfg, job_spec, value_objects
+from lime_etl.domain import (
+    batch_status,
+    cfg,
+    job_spec,
+    timestamp_adapter,
+    value_objects,
+)
 
 __all__ = (
     "BatchSpec",
@@ -32,6 +38,22 @@ class BatchSpec(abc.ABC, typing.Generic[Cfg, UoW]):
     @abc.abstractmethod
     def create_uow(self, config: Cfg) -> UoW:
         raise NotImplementedError
+
+    def run(
+        self,
+        *,
+        config: Cfg,
+        log_to_console: bool = False,
+        ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
+    ) -> batch_status.BatchStatus:
+        from lime_etl.service import batch_runner
+
+        return batch_runner.run_batch(
+            batch=self,
+            config=config,
+            log_to_console=log_to_console,
+            ts_adapter=ts_adapter,
+        )
 
     @property
     def skip_tests(self) -> value_objects.Flag:

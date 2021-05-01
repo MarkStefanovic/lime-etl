@@ -1,7 +1,6 @@
 import datetime
 import itertools
 import multiprocessing
-import sys
 import traceback
 import typing
 
@@ -9,12 +8,11 @@ import lime_uow as lu
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from lime_etl import domain, adapter
+from lime_etl import adapter, domain
 from lime_etl.service import admin
 
 __all__ = (
     "run_admin",
-    "run_batch",
     "run_batches_in_parallel",
 )
 
@@ -26,12 +24,17 @@ def run_admin(
     *,
     config: domain.Config,
     ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
+    log_to_console: bool = False,
 ) -> domain.BatchStatus:
     batch = admin.AdminBatch(
         config=config,
         ts_adapter=ts_adapter,
     )
-    return batch.run()
+    return batch.run(
+        config=config,
+        ts_adapter=ts_adapter,
+        log_to_console=log_to_console,
+    )
 
 
 def run_batches_in_parallel(

@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 from lime_etl import adapter, domain
-from lime_etl.service import admin, batch_runner
+from lime_etl.service import admin
 
 __all__ = ("AdminBatch",)
 
@@ -47,11 +47,4 @@ class AdminBatch(domain.BatchSpec[domain.Config, domain.AdminUnitOfWork]):
         admin_session_factory = orm.sessionmaker(bind=admin_engine)
         return adapter.SqlAlchemyAdminUnitOfWork(
             session_factory=admin_session_factory, ts_adapter=self._ts_adapter
-        )
-
-    def run(self) -> domain.BatchStatus:
-        return batch_runner.run_batch(
-            config=self._config,
-            batch=self,
-            log_to_console=self._log_to_console,
         )
