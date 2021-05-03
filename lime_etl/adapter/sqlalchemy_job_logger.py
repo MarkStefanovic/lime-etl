@@ -39,7 +39,7 @@ class SqlAlchemyJobLogger(domain.JobLogger):
         self._session.add(log_entry.to_dto())
         self._session.commit()
         if self._log_to_console:
-            print(f"{ts.value.strftime('%H:%M:%S')} [{level.value!s}]: message")
+            print(f"{ts.value.strftime('%H:%M:%S')} [{level.value!s}]: {message}")
 
     def error(self, message: str, /) -> None:
         return self._log(

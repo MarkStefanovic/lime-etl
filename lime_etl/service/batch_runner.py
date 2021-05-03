@@ -99,6 +99,18 @@ def run_batch(
                 start_time=start_time,
                 ts_adapter=ts_adapter,
             )
+        except Exception as e:
+            execution_millis = ts_adapter.get_elapsed_time(start_ts=start_time)
+            logger.exception(e)
+            result = domain.BatchStatus(
+                id=batch.batch_id,
+                name=batch.batch_name,
+                job_results=frozenset(),
+                execution_success_or_failure=domain.Result.failure(str(e)),
+                execution_millis=execution_millis,
+                running=domain.Flag(False),
+                ts=ts_adapter.now(),
+            )
         finally:
             batch_uow.close()
 
@@ -206,6 +218,7 @@ def run_batch_or_fail(
                         ts_adapter=ts_adapter,
                     )
                 except Exception as e:
+                    logger.exception(e)
                     millis = ts_adapter.get_elapsed_time(start_time)
                     err_msg = f"{e}\n{traceback.format_exc(10)}"
                     result = domain.JobResult(

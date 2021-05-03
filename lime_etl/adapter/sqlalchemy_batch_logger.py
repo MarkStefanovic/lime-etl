@@ -31,6 +31,7 @@ class SqlAlchemyBatchLogger(domain.BatchLogger):
             job_id=job_id,
             session=self._session,
             ts_adapter=self._ts_adapter,
+            log_to_console=self._log_to_console,
         )
 
     def _log(self, level: domain.LogLevel, message: str) -> None:
@@ -45,7 +46,7 @@ class SqlAlchemyBatchLogger(domain.BatchLogger):
         self._session.add(log_entry.to_dto())
         self._session.commit()
         if self._log_to_console:
-            print(f"{ts.value.strftime('%H:%M:%S')} [{level.value!s}]: message")
+            print(f"{ts.value.strftime('%H:%M:%S')} [{level.value!s}]: {message}")
 
     def error(self, /, message: str) -> None:
         return self._log(
