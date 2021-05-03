@@ -1,12 +1,14 @@
 import datetime
 import typing
 
+import lime_uow as lu
+
 from lime_etl import domain
 
 __all__ = ("DeleteOldLogs",)
 
 
-class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
+class DeleteOldLogs(domain.JobSpec):
     def __init__(
         self,
         days_logs_to_keep: domain.DaysToKeep = domain.DaysToKeep(3),
@@ -27,21 +29,24 @@ class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
 
     def run(
         self,
-        uow: domain.AdminUnitOfWork,
+        uow: lu.UnitOfWork,
         logger: domain.JobLogger,
     ) -> domain.JobStatus:
         with uow:
-            uow.batch_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
+            batch_log_repo = uow.get(domain.BatchLogRepository)  # type: ignore
+            batch_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
             logger.info(
                 f"Deleted batch log entries older than {self._days_logs_to_keep.value} days old."
             )
 
-            uow.job_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
+            job_log_repo = uow.get(domain.JobLogRepository)  # type: ignore
+            job_log_repo.delete_old_entries(days_to_keep=self._days_logs_to_keep)
             logger.info(
                 f"Deleted job log entries older than {self._days_logs_to_keep.value} days old."
             )
 
-            uow.batch_repo.delete_old_entries(self._days_logs_to_keep)
+            batch_repo = uow.get(domain.BatchRepository)  # type: ignore
+            batch_repo.delete_old_entries(self._days_logs_to_keep)
             logger.info(
                 f"Deleted batch results older than {self._days_logs_to_keep.value} days old."
             )
@@ -51,16 +56,16 @@ class DeleteOldLogs(domain.JobSpec[domain.admin_unit_of_work.AdminUnitOfWork]):
 
     def test(
         self,
-        uow: domain.AdminUnitOfWork,
+        uow: lu.UnitOfWork,
         logger: domain.JobLogger,
     ) -> typing.List[domain.SimpleJobTestResult]:
         with uow:
-            now = uow.ts_adapter.now().value
+            now = uow.get(domain.TimestampAdapter).now().value  # type: ignore
             cutoff_date = datetime.datetime.combine(
                 (now - datetime.timedelta(days=self._days_logs_to_keep.value)).date(),
                 datetime.datetime.min.time(),
             )
-            earliest_ts = uow.batch_log_repo.get_earliest_timestamp()
+            earliest_ts = uow.get(domain.BatchLogRepository).get_earliest_timestamp()  # type: ignore
 
         if earliest_ts and earliest_ts < cutoff_date:
             return [

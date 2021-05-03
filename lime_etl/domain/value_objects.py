@@ -102,7 +102,7 @@ class Flag(ValueObject):
 
         if not isinstance(value, bool):
             raise TypeError(
-                f"{self.__class__.__name__} expects an integer, but got {value!r}"
+                f"{self.__class__.__name__} expects a bool, but got {value!r}"
             )
 
         super().__init__(value)

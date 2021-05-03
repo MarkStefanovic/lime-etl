@@ -16,9 +16,6 @@ __all__ = (
     "run_batches_in_parallel",
 )
 
-Cfg = typing.TypeVar("Cfg", bound=domain.Config, contravariant=True)
-UoW = typing.TypeVar("UoW", bound=lu.UnitOfWork, contravariant=True)
-
 
 def run_admin(
     *,
@@ -38,7 +35,7 @@ def run_admin(
 
 
 def run_batches_in_parallel(
-    batches: typing.Iterable[domain.BatchSpec[Cfg, UoW]],
+    batches: typing.Iterable[domain.BatchSpec],
     config: domain.Config,
     max_processes: domain.MaxProcesses = domain.MaxProcesses(None),
     timeout: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
@@ -51,8 +48,8 @@ def run_batches_in_parallel(
 
 
 def run_batch(
-    batch: domain.BatchSpec[Cfg, UoW],
-    config: Cfg,
+    batch: domain.BatchSpec,
+    config: domain.Config,
     log_to_console: bool = False,
     ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
@@ -70,7 +67,7 @@ def run_batch(
         ts_adapter=ts_adapter,
         log_to_console=log_to_console,
     )
-    admin_uow: domain.AdminUnitOfWork = adapter.SqlAlchemyAdminUnitOfWork(
+    admin_uow = adapter.SqlAlchemyAdminUnitOfWork(
         session_factory=admin_session_factory, ts_adapter=ts_adapter
     )
 
@@ -145,9 +142,9 @@ def run_batch(
 
 def run_batch_or_fail(
     *,
-    admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
-    batch: domain.BatchSpec[Cfg, UoW],
-    batch_uow: UoW,
+    admin_uow: lu.UnitOfWork,
+    batch: domain.BatchSpec,
+    batch_uow: lu.UnitOfWork,
     logger: domain.batch_logger.BatchLogger,
     start_time: domain.Timestamp,
     ts_adapter: domain.TimestampAdapter,
@@ -181,7 +178,8 @@ def run_batch_or_fail(
         else:
             current_ts = ts_adapter.now()
             with admin_uow as uow:
-                last_ts = uow.job_repo.get_last_successful_ts(job.job_name)
+                job_repo = uow.get(domain.JobRepository)  # type: ignore
+                last_ts = job_repo.get_last_successful_ts(job.job_name)
 
             if last_ts:
                 seconds_since_last_refresh = (
@@ -203,7 +201,8 @@ def run_batch_or_fail(
                     ts=start_time,
                 )
                 with admin_uow as uow:
-                    uow.job_repo.add(result.to_dto())
+                    job_repo = uow.get(domain.JobRepository)  # type: ignore
+                    job_repo.add(result.to_dto())
                     uow.save()
 
                 # noinspection PyBroadException
@@ -252,7 +251,8 @@ def run_batch_or_fail(
 
         job_results.append(result)
         with admin_uow as uow:
-            uow.job_repo.update(result.to_dto())
+            job_repo = uow.get(domain.JobRepository)  # type: ignore
+            job_repo.update(result.to_dto())
             uow.save()
 
     end_time = ts_adapter.now()
@@ -271,10 +271,10 @@ def run_batch_or_fail(
 
 def run_job(
     *,
-    admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
-    batch: domain.BatchSpec[Cfg, UoW],
-    batch_uow: UoW,
-    job: domain.JobSpec[UoW],
+    admin_uow: lu.UnitOfWork,
+    batch: domain.BatchSpec,
+    batch_uow: lu.UnitOfWork,
+    job: domain.JobSpec,
     job_id: domain.UniqueId,
     logger: domain.JobLogger,
     ts_adapter: domain.TimestampAdapter,
@@ -323,10 +323,10 @@ def run_job(
 
 def run_job_pre_handlers(
     *,
-    admin_uow: domain.admin_unit_of_work.AdminUnitOfWork,
-    batch: domain.BatchSpec[Cfg, UoW],
-    batch_uow: UoW,
-    job: domain.JobSpec[UoW],
+    admin_uow: lu.UnitOfWork,
+    batch: domain.BatchSpec,
+    batch_uow: lu.UnitOfWork,
+    job: domain.JobSpec,
     job_id: domain.UniqueId,
     logger: domain.JobLogger,
     ts_adapter: domain.TimestampAdapter,
@@ -334,7 +334,8 @@ def run_job_pre_handlers(
     logger.info(f"Starting [{job.job_name.value}]...")
     start_time = ts_adapter.now()
     with admin_uow as uow:
-        current_batch = uow.batch_repo.get(batch.batch_id.value).to_domain()
+        batch_repo = uow.get(domain.BatchRepository)  # type: ignore
+        current_batch = batch_repo.get(batch.batch_id.value).to_domain()
 
     if current_batch is None:
         msg = f"The batch [{batch.batch_id.value}] was not found"
@@ -379,10 +380,10 @@ def run_job_pre_handlers(
 
 def run_jobs_with_tests(
     *,
-    admin_uow: domain.AdminUnitOfWork,
-    batch: domain.BatchSpec[Cfg, UoW],
-    batch_uow: UoW,
-    job: domain.JobSpec[UoW],
+    admin_uow: lu.UnitOfWork,
+    batch: domain.BatchSpec,
+    batch_uow: lu.UnitOfWork,
+    job: domain.JobSpec,
     job_id: domain.UniqueId,
     logger: domain.JobLogger,
     start_time: domain.Timestamp,
@@ -406,7 +407,8 @@ def run_jobs_with_tests(
             full_test_results: typing.FrozenSet[domain.JobTestResult] = frozenset()
         else:
             with admin_uow:
-                last_test_results = admin_uow.job_repo.latest_test_results(job.job_name)
+                job_repo = admin_uow.get(domain.JobRepository)  # type: ignore
+                last_test_results = job_repo.latest_test_results(job.job_name)
 
             if last_test_results:
                 last_test_time: datetime.datetime = max(
@@ -498,10 +500,10 @@ def run_jobs_with_tests(
 
 def run_job_with_retry(
     *,
-    admin_uow: domain.AdminUnitOfWork,
-    batch: domain.BatchSpec[Cfg, UoW],
-    batch_uow: UoW,
-    job: domain.JobSpec[UoW],
+    admin_uow: lu.UnitOfWork,
+    batch: domain.BatchSpec,
+    batch_uow: lu.UnitOfWork,
+    job: domain.JobSpec,
     logger: domain.JobLogger,
     max_retries: int,
     retries_so_far: int,
@@ -535,9 +537,7 @@ def run_job_with_retry(
             raise
 
 
-def check_for_duplicate_job_names(
-    jobs: typing.Collection[domain.JobSpec[UoW]], /
-) -> None:
+def check_for_duplicate_job_names(jobs: typing.Collection[domain.JobSpec], /) -> None:
     job_names = [job.job_name for job in jobs]
     duplicates = {
         job_name: ct for job_name in job_names if (ct := job_names.count(job_name)) > 1
@@ -546,7 +546,7 @@ def check_for_duplicate_job_names(
         raise domain.exceptions.DuplicateJobNamesError(duplicates)
 
 
-def check_dependencies(jobs: typing.List[domain.JobSpec[UoW]], /) -> None:
+def check_dependencies(jobs: typing.List[domain.JobSpec], /) -> None:
     job_names = {job.job_name for job in jobs}
     unresolved_dependencies_by_table = {
         job.job_name: set(dep for dep in job.dependencies if dep not in job_names)

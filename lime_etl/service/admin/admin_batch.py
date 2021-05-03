@@ -3,13 +3,15 @@ import typing
 import sqlalchemy as sa
 from sqlalchemy import orm
 
+import lime_uow as lu
+
 from lime_etl import adapter, domain
 from lime_etl.service import admin
 
 __all__ = ("AdminBatch",)
 
 
-class AdminBatch(domain.BatchSpec[domain.Config, domain.AdminUnitOfWork]):
+class AdminBatch(domain.BatchSpec):
     def __init__(
         self,
         *,
@@ -30,8 +32,8 @@ class AdminBatch(domain.BatchSpec[domain.Config, domain.AdminUnitOfWork]):
         return domain.BatchName("admin")
 
     def create_jobs(
-        self, uow: domain.AdminUnitOfWork
-    ) -> typing.List[domain.JobSpec[domain.AdminUnitOfWork]]:
+        self, uow: lu.UnitOfWork
+    ) -> typing.List[domain.JobSpec]:
         return [
             admin.delete_old_logs.DeleteOldLogs(
                 days_logs_to_keep=self._config.days_logs_to_keep,
@@ -39,7 +41,7 @@ class AdminBatch(domain.BatchSpec[domain.Config, domain.AdminUnitOfWork]):
             ),
         ]
 
-    def create_uow(self, config: domain.Config) -> domain.AdminUnitOfWork:
+    def create_uow(self, config: domain.Config) -> lu.UnitOfWork:
         admin_engine = sa.create_engine(self._config.admin_engine_uri.value)
         adapter.admin_metadata.create_all(bind=admin_engine)
         adapter.admin_orm.set_schema(schema=self._config.admin_schema)

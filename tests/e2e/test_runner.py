@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 import lime_etl as le
+import lime_uow as lu
 from lime_uow import sqlalchemy_resources as lsa
 from tests import test_utils
 
@@ -78,7 +79,7 @@ class MessageUOW(le.UnitOfWork):
         return self.get(AbstractMessageRepo)  # type: ignore
 
 
-class MessageJob(le.JobSpec[MessageUOW]):
+class MessageJob(le.JobSpec):
     def __init__(
         self,
         messages: typing.Iterable[Message],
@@ -91,11 +92,11 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def run(
         self,
-        uow: MessageUOW,
+        uow: lu.UnitOfWork,
         logger: le.JobLogger,
     ) -> le.JobStatus:
         with uow:
-            uow.message_repo.add_all(self._messages)
+            uow.get(MessageRepo).add_all(self._messages)
             uow.save()
         return le.JobStatus.success()
 
@@ -109,12 +110,12 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def on_execution_error(
         self, error_message: str
-    ) -> typing.Optional[le.JobSpec[MessageUOW]]:
+    ) -> typing.Optional[le.JobSpec]:
         return None
 
     def on_test_failure(
         self, test_results: typing.FrozenSet[le.JobTestResult]
-    ) -> typing.Optional[le.JobSpec[MessageUOW]]:
+    ) -> typing.Optional[le.JobSpec]:
         return None
 
     @property
@@ -131,11 +132,11 @@ class MessageJob(le.JobSpec[MessageUOW]):
 
     def test(
         self,
-        uow: MessageUOW,
+        uow: lu.UnitOfWork,
         logger: le.JobLogger,
     ) -> typing.List[le.SimpleJobTestResult]:
         with uow:
-            result = uow.message_repo.all()
+            result = uow.get(MessageRepo).all()
             missing_messages = [msg for msg in self._messages if msg not in result]
             test_name = le.TestName("Messages saved")
             if missing_messages:
@@ -156,7 +157,7 @@ class MessageJob(le.JobSpec[MessageUOW]):
                 ]
 
 
-class MessageBatchHappyPath(le.BatchSpec[le.Config, MessageUOW]):
+class MessageBatchHappyPath(le.BatchSpec):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -164,7 +165,7 @@ class MessageBatchHappyPath(le.BatchSpec[le.Config, MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: lu.UnitOfWork) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -184,11 +185,11 @@ class MessageBatchHappyPath(le.BatchSpec[le.Config, MessageUOW]):
             ),
         ]
 
-    def create_uow(self, config: le.Config) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> lu.UnitOfWork:
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithMissingDependencies(le.BatchSpec[le.Config, MessageUOW]):
+class MessageBatchWithMissingDependencies(le.BatchSpec):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -196,7 +197,7 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[le.Config, MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: lu.UnitOfWork) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -220,7 +221,7 @@ class MessageBatchWithMissingDependencies(le.BatchSpec[le.Config, MessageUOW]):
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[le.Config, MessageUOW]):
+class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -228,7 +229,7 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[le.Config, MessageUOW]
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: lu.UnitOfWork) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 job_name="hello_world_job2",
@@ -251,11 +252,11 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[le.Config, MessageUOW]
     def create_shared_resource(self) -> le.SharedResourceManager:
         return le.SharedResourceManager(lsa.SqlAlchemySession(self._session_factory))
 
-    def create_uow(self, config: le.Config) -> MessageUOW:
+    def create_uow(self, config: le.Config) -> lu.UnitOfWork:
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithDuplicateJobNames(le.BatchSpec[le.Config, MessageUOW]):
+class MessageBatchWithDuplicateJobNames(le.BatchSpec):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -263,7 +264,7 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[le.Config, MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: lu.UnitOfWork) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -287,7 +288,7 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec[le.Config, MessageUOW]):
         return MessageUOW(self._session_factory)
 
 
-class PickleableMessageBatch(le.BatchSpec[le.Config, MessageUOW]):
+class PickleableMessageBatch(le.BatchSpec):
     def __init__(
         self,
         db_uri: le.DbUri,
@@ -300,7 +301,7 @@ class PickleableMessageBatch(le.BatchSpec[le.Config, MessageUOW]):
     def batch_name(self) -> le.BatchName:
         return le.BatchName("test_batch")
 
-    def create_jobs(self, uow: MessageUOW) -> typing.List[le.JobSpec[MessageUOW]]:
+    def create_jobs(self, uow: lu.UnitOfWork) -> typing.List[le.JobSpec]:
         return [
             MessageJob(
                 job_name="hello_world_job",
@@ -602,7 +603,7 @@ def test_run_batches_in_parallel(
     )
     results = le.run_batches_in_parallel(
         config=test_config,
-        batches=[admin_batch, message_batch],  # type: ignore
+        batches=[admin_batch, message_batch],
         max_processes=le.MaxProcesses(3),
         timeout=le.TimeoutSeconds(10),
     )

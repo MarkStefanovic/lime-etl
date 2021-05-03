@@ -17,7 +17,7 @@ from lime_etl.adapter import (
 __all__ = ("SqlAlchemyAdminUnitOfWork",)
 
 
-class SqlAlchemyAdminUnitOfWork(domain.AdminUnitOfWork):
+class SqlAlchemyAdminUnitOfWork(lu.UnitOfWork):
     def __init__(
         self,
         session_factory: orm.sessionmaker,
@@ -36,7 +36,10 @@ class SqlAlchemyAdminUnitOfWork(domain.AdminUnitOfWork):
         return self.get(domain.BatchLogRepository)  # type: ignore  # see mypy issue 5374
 
     def create_shared_resources(self) -> typing.List[lu.Resource[typing.Any]]:
-        return [sqlalchemy_admin_session.SqlAlchemyAdminSession(self._session_factory)]
+        return [
+            sqlalchemy_admin_session.SqlAlchemyAdminSession(self._session_factory),
+            domain.LocalTimestampAdapter()
+        ]
 
     @property
     def job_repo(self) -> domain.JobRepository:
@@ -46,7 +49,6 @@ class SqlAlchemyAdminUnitOfWork(domain.AdminUnitOfWork):
     def job_log_repo(self) -> domain.JobLogRepository:
         return self.get(domain.JobLogRepository)  # type: ignore  # see mypy issue 5374
 
-    @property
     def ts_adapter(self) -> domain.TimestampAdapter:
         return self._ts_adapter
 

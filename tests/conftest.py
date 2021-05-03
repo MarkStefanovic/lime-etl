@@ -80,6 +80,7 @@ def postgres_db() -> sa.engine.Engine:
         "batches",
         "job_test_results",
         "jobs",
+        "messages",
     )
     le.set_schema(le.SchemaName("etl"))
     # le.admin_metadata.drop_all(engine)
