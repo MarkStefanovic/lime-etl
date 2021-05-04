@@ -8,7 +8,7 @@ __all__ = ("BatchLogger",)
 class BatchLogger(abc.ABC):
     @abc.abstractmethod
     def create_job_logger(
-        self, /, job_id: value_objects.UniqueId
+        self, *, job_name: value_objects.JobName, job_id: value_objects.UniqueId
     ) -> job_logger.JobLogger:
         raise NotImplementedError
 

@@ -13,6 +13,7 @@ class SqlAlchemyBatchLogger(domain.BatchLogger):
     def __init__(
         self,
         *,
+        batch_name: domain.BatchName,
         batch_id: domain.UniqueId,
         session: orm.Session,
         ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
@@ -20,13 +21,15 @@ class SqlAlchemyBatchLogger(domain.BatchLogger):
     ):
         super().__init__()
 
+        self._batch_name = batch_name
         self._batch_id = batch_id
         self._session = session
         self._ts_adapter = ts_adapter
         self._log_to_console = log_to_console
 
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLogger:
+    def create_job_logger(self, *, job_name: domain.JobName, job_id: domain.UniqueId) -> domain.JobLogger:
         return sqlalchemy_job_logger.SqlAlchemyJobLogger(
+            job_name=job_name,
             batch_id=self._batch_id,
             job_id=job_id,
             session=self._session,
@@ -46,7 +49,7 @@ class SqlAlchemyBatchLogger(domain.BatchLogger):
         self._session.add(log_entry.to_dto())
         self._session.commit()
         if self._log_to_console:
-            print(f"{ts.value.strftime('%H:%M:%S')} [{level.value!s}]: {message}")
+            print(f"{ts.value.strftime('%H:%M:%S')} ({level.value!s}) [{self._batch_name.value}]: {message}")
 
     def error(self, /, message: str) -> None:
         return self._log(
@@ -73,7 +76,7 @@ class ConsoleBatchLogger(domain.BatchLogger):
         self.batch_id = batch_id
         super().__init__()
 
-    def create_job_logger(self, /, job_id: domain.UniqueId) -> domain.JobLogger:
+    def create_job_logger(self, *, job_name: domain.JobName, job_id: domain.UniqueId) -> domain.JobLogger:
         return sqlalchemy_job_logger.ConsoleJobLogger()
 
     def error(self, /, message: str) -> None:

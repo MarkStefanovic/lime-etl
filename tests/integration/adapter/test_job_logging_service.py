@@ -11,6 +11,7 @@ from tests import conftest
 @pytest.fixture
 def job_logger(session: orm.Session) -> le.SqlAlchemyJobLogger:
     return le.SqlAlchemyJobLogger(
+        job_name=le.JobName("test_job"),
         session=session,
         batch_id=le.UniqueId("a" * 32),
         job_id=le.UniqueId("b" * 32),

@@ -12,12 +12,14 @@ class SqlAlchemyJobLogger(domain.JobLogger):
     def __init__(
         self,
         *,
+        job_name: domain.JobName,
         batch_id: domain.UniqueId,
         job_id: domain.UniqueId,
         session: orm.Session,
         ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
         log_to_console: bool = False,
     ):
+        self._job_name = job_name
         self._batch_id = batch_id
         self._job_id = job_id
         self._session = session
@@ -39,7 +41,7 @@ class SqlAlchemyJobLogger(domain.JobLogger):
         self._session.add(log_entry.to_dto())
         self._session.commit()
         if self._log_to_console:
-            print(f"{ts.value.strftime('%H:%M:%S')} [{level.value!s}]: {message}")
+            print(f"{ts.value.strftime('%H:%M:%S')} ({level.value!s}) [{self._job_name.value}]: {message}")
 
     def error(self, message: str, /) -> None:
         return self._log(

@@ -11,10 +11,9 @@ from sqlalchemy import orm
 from lime_etl import adapter, domain
 from lime_etl.service import admin
 
-__all__ = (
-    "run_admin",
-    "run_batches_in_parallel",
-)
+__all__ = ("run_admin", "run_batches_in_parallel")
+
+Cfg = typing.TypeVar("Cfg", bound=domain.Config)
 
 
 def run_admin(
@@ -35,8 +34,8 @@ def run_admin(
 
 
 def run_batches_in_parallel(
-    batches: typing.Iterable[domain.BatchSpec],
-    config: domain.Config,
+    batches: typing.Iterable[domain.BatchSpec[Cfg]],
+    config: Cfg,
     max_processes: domain.MaxProcesses = domain.MaxProcesses(None),
     timeout: domain.TimeoutSeconds = domain.TimeoutSeconds(None),
     log_to_console: bool = False,
@@ -48,8 +47,8 @@ def run_batches_in_parallel(
 
 
 def run_batch(
-    batch: domain.BatchSpec,
-    config: domain.Config,
+    batch: domain.BatchSpec[Cfg],
+    config: Cfg,
     log_to_console: bool = False,
     ts_adapter: domain.TimestampAdapter = domain.LocalTimestampAdapter(),
 ) -> domain.BatchStatus:
@@ -62,6 +61,7 @@ def run_batch(
     admin_session_factory = orm.sessionmaker(bind=admin_engine)
 
     logger = adapter.SqlAlchemyBatchLogger(
+        batch_name=batch.batch_name,
         batch_id=batch.batch_id,
         session=admin_session_factory(),
         ts_adapter=ts_adapter,
@@ -143,7 +143,7 @@ def run_batch(
 def run_batch_or_fail(
     *,
     admin_uow: lu.UnitOfWork,
-    batch: domain.BatchSpec,
+    batch: domain.BatchSpec[Cfg],
     batch_uow: lu.UnitOfWork,
     logger: domain.batch_logger.BatchLogger,
     start_time: domain.Timestamp,
@@ -193,7 +193,9 @@ def run_batch_or_fail(
                 time_to_run_again = True
 
             if time_to_run_again:
-                job_logger = logger.create_job_logger(job_id)
+                job_logger = logger.create_job_logger(
+                    job_name=job.job_name, job_id=job_id
+                )
                 result = domain.JobResult.running(
                     job_status_id=job_id,
                     batch_id=batch.batch_id,
@@ -272,7 +274,7 @@ def run_batch_or_fail(
 def run_job(
     *,
     admin_uow: lu.UnitOfWork,
-    batch: domain.BatchSpec,
+    batch: domain.BatchSpec[Cfg],
     batch_uow: lu.UnitOfWork,
     job: domain.JobSpec,
     job_id: domain.UniqueId,
@@ -324,7 +326,7 @@ def run_job(
 def run_job_pre_handlers(
     *,
     admin_uow: lu.UnitOfWork,
-    batch: domain.BatchSpec,
+    batch: domain.BatchSpec[Cfg],
     batch_uow: lu.UnitOfWork,
     job: domain.JobSpec,
     job_id: domain.UniqueId,
@@ -381,7 +383,7 @@ def run_job_pre_handlers(
 def run_jobs_with_tests(
     *,
     admin_uow: lu.UnitOfWork,
-    batch: domain.BatchSpec,
+    batch: domain.BatchSpec[Cfg],
     batch_uow: lu.UnitOfWork,
     job: domain.JobSpec,
     job_id: domain.UniqueId,
@@ -501,7 +503,7 @@ def run_jobs_with_tests(
 def run_job_with_retry(
     *,
     admin_uow: lu.UnitOfWork,
-    batch: domain.BatchSpec,
+    batch: domain.BatchSpec[Cfg],
     batch_uow: lu.UnitOfWork,
     job: domain.JobSpec,
     logger: domain.JobLogger,

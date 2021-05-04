@@ -157,7 +157,7 @@ class MessageJob(le.JobSpec):
                 ]
 
 
-class MessageBatchHappyPath(le.BatchSpec):
+class MessageBatchHappyPath(le.BatchSpec[le.Config]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -189,7 +189,7 @@ class MessageBatchHappyPath(le.BatchSpec):
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithMissingDependencies(le.BatchSpec):
+class MessageBatchWithMissingDependencies(le.BatchSpec[le.Config]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -221,7 +221,7 @@ class MessageBatchWithMissingDependencies(le.BatchSpec):
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec):
+class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec[le.Config]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -256,7 +256,7 @@ class MessageBatchWithDependenciesOutOfOrder(le.BatchSpec):
         return MessageUOW(self._session_factory)
 
 
-class MessageBatchWithDuplicateJobNames(le.BatchSpec):
+class MessageBatchWithDuplicateJobNames(le.BatchSpec[le.Config]):
     def __init__(self, session_factory: orm.sessionmaker):
         self._session_factory = session_factory
 
@@ -288,7 +288,7 @@ class MessageBatchWithDuplicateJobNames(le.BatchSpec):
         return MessageUOW(self._session_factory)
 
 
-class PickleableMessageBatch(le.BatchSpec):
+class PickleableMessageBatch(le.BatchSpec[le.Config]):
     def __init__(
         self,
         db_uri: le.DbUri,

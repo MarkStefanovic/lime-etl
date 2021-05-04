@@ -39,7 +39,7 @@ class DummyResource(le.Resource[str]):
 
 
 def test_minimal_create_batch_creates_valid_batch_spec() -> None:
-    batch = le.create_batch(
+    batch = le.create_batch(  # type: ignore
         name="test_batch",
         jobs=[DummyJob("dummy1"), DummyJob("dummy2")],
         create_uow=lambda cfg: DummyUoW(cfg),

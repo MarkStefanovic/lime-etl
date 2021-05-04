@@ -17,8 +17,10 @@ __all__ = (
     "create_batch",
 )
 
+Cfg = typing.TypeVar("Cfg", bound=cfg.Config)
 
-class BatchSpec(abc.ABC):
+
+class BatchSpec(abc.ABC, typing.Generic[Cfg]):
     @functools.cached_property
     def batch_id(self) -> value_objects.UniqueId:
         return value_objects.UniqueId.generate()
@@ -33,13 +35,13 @@ class BatchSpec(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def create_uow(self, config: cfg.Config) -> lu.UnitOfWork:
+    def create_uow(self, config: Cfg) -> lu.UnitOfWork:
         raise NotImplementedError
 
     def run(
         self,
         *,
-        config: cfg.Config,
+        config: Cfg,
         log_to_console: bool = False,
         ts_adapter: timestamp_adapter.TimestampAdapter = timestamp_adapter.LocalTimestampAdapter(),
     ) -> batch_status.BatchStatus:
@@ -68,23 +70,20 @@ class BatchSpec(abc.ABC):
 
     def __eq__(self, other: object) -> bool:
         if other.__class__ is self.__class__:
-            return (
-                self.batch_name.value
-                == typing.cast(
-                    BatchSpec, other
-                ).batch_name.value
-            )
+            # fmt: off
+            return self.batch_name.value == typing.cast(BatchSpec[Cfg], other).batch_name.value
+            # fmt: on
         else:
             return NotImplemented
 
 
-class BatchSpecImpl(BatchSpec):
+class BatchSpecImpl(BatchSpec[Cfg]):
     def __init__(
         # fmt: off
         self,
         *,
         name: str,
-        create_uow: typing.Callable[[cfg.Config], lu.UnitOfWork],
+        create_uow: typing.Callable[[Cfg], lu.UnitOfWork],
         jobs: typing.List[job_spec.JobSpec],
         skip_tests: bool,
         timeout_seconds: typing.Optional[int],
@@ -107,7 +106,7 @@ class BatchSpecImpl(BatchSpec):
     def create_jobs(self, uow: lu.UnitOfWork) -> typing.List[job_spec.JobSpec]:
         return self._jobs
 
-    def create_uow(self, config: cfg.Config) -> lu.UnitOfWork:
+    def create_uow(self, config: Cfg) -> lu.UnitOfWork:
         return self._create_uow(config)
 
     @property
@@ -124,18 +123,15 @@ def create_batch(
     *,
     name: str,
     jobs: typing.List[job_spec.JobSpec],
-    create_uow: typing.Callable[[cfg.Config], lu.UnitOfWork],
+    create_uow: typing.Callable[[Cfg], lu.UnitOfWork],
     skip_tests: bool = False,
     timeout_seconds: typing.Optional[int] = None,
     # fmt: on
-) -> BatchSpec:
-    return typing.cast(
-        BatchSpec,
-        BatchSpecImpl(
-            name=name,
-            jobs=jobs,
-            create_uow=create_uow,
-            skip_tests=skip_tests,
-            timeout_seconds=timeout_seconds,
-        ),
+) -> BatchSpec[cfg.Config]:
+    return BatchSpecImpl(
+        name=name,
+        jobs=jobs,
+        create_uow=create_uow,  # type: ignore
+        skip_tests=skip_tests,
+        timeout_seconds=timeout_seconds,
     )

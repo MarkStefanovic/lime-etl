@@ -11,7 +11,7 @@ from lime_etl.service import admin
 __all__ = ("AdminBatch",)
 
 
-class AdminBatch(domain.BatchSpec):
+class AdminBatch(domain.BatchSpec[domain.Config]):
     def __init__(
         self,
         *,

@@ -13,6 +13,7 @@ def batch_logger(
     session: orm.Session,
 ) -> le.SqlAlchemyBatchLogger:
     return le.SqlAlchemyBatchLogger(
+        batch_name=le.BatchName("test_batch"),
         batch_id=le.UniqueId("a" * 32),
         session=session,
         ts_adapter=conftest.StaticTimestampAdapter(datetime.datetime(2020, 1, 2)),

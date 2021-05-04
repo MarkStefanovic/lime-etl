@@ -82,14 +82,14 @@ class JobSpec(abc.ABC):
 class SimpleJobSpec(JobSpec):
     def __init__(
         # fmt: off
-            self,
-            *,
-            name: str,
-            dependencies: typing.Optional[typing.Set[str]] = None,
-            timeout_seconds: typing.Optional[int] = None,
-            max_retries: typing.Optional[int] = None,
-            min_seconds_between_refreshes: typing.Optional[int] = None,
-            min_seconds_between_tests: typing.Optional[int] = None,
+        self,
+        *,
+        name: str,
+        dependencies: typing.Optional[typing.Set[str]] = None,
+        timeout_seconds: typing.Optional[int] = None,
+        max_retries: typing.Optional[int] = None,
+        min_seconds_between_refreshes: typing.Optional[int] = None,
+        min_seconds_between_tests: typing.Optional[int] = None,
         # fmt: on
     ):
         self._name = value_objects.JobName(name)
